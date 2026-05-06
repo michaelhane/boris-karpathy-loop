@@ -62,6 +62,22 @@ git commit -m "chore: initial scaffold for boris-karpathy-loop v0.1
 
 ## Phase B — Test locally before pushing public
 
+### B0. Validate manifests against the plugin schema (also recommended BEFORE A4)
+```bash
+claude plugin validate .
+```
+Expected: `marketplace.json` and `plugin.json` both pass schema validation.
+
+This catches shape errors that plain JSON-parse validation misses — most
+notably, `author` (in `plugin.json`) and `owner` (in `marketplace.json`) must
+be objects of the form `{ "name": "...", "url": "..." }`, not bare strings.
+v0.1.0 was committed with both as strings; they parsed fine but `claude
+plugin install` rejected them at install time. Running `validate` before A4
+would have caught it pre-commit.
+
+Fallback if the CLI isn't on PATH: invoke the `plugin-dev:plugin-validator`
+agent in Claude Code with the project root as input.
+
 ### B1. Install the plugin locally
 From inside Claude Code:
 ```
