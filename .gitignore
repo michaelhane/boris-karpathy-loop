@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# Node (in case we add tooling later)
+node_modules/
+*.log
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Claude Code per-machine state
+.claude/projects/
+.claude/sessions/
+.claude/settings.local.json
+.claude/*.local.json
+
+# Graphify (consumers commit graphify-out/ themselves; this repo doesn't ship one)
+graphify-out/
+
+# OS
+Thumbs.db
+
+# Local staging from v0.1.0 unpack — not part of the plugin
+bo-karpa-Loop_files/
+bo-karpa-Loop_files.zip

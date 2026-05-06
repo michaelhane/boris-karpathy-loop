@@ -1,0 +1,15 @@
+{
+  "name": "boris-karpathy-loop",
+  "owner": {
+    "name": "michaelhane",
+    "url": "https://github.com/michaelhane"
+  },
+  "description": "Boris workflow discipline + Karpathy review agent + Graphify-friendly compounding loop",
+  "plugins": [
+    {
+      "name": "boris-karpathy-loop",
+      "source": "./",
+      "description": "Install Boris session discipline and the Karpathy review subagent. Best paired with the graphify CLI for cross-session compounding."
+    }
+  ]
+}

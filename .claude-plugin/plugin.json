@@ -1,0 +1,24 @@
+{
+  "name": "boris-karpathy-loop",
+  "version": "0.1.0",
+  "description": "Boris-style workflow discipline plus Karpathy-inspired review and tutoring subagents. Findings and lessons land on disk for cross-session learning. Designed to compound with Graphify-indexed knowledge.",
+  "author": {
+    "name": "michaelhane",
+    "url": "https://github.com/michaelhane"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/michaelhane/boris-karpathy-loop",
+  "skills": [
+    "./skills/boris-cherny-way"
+  ],
+  "agents": [
+    "./agents/karpathy-reviewer.md",
+    "./agents/karpathy-tutor.md"
+  ],
+  "commands": [
+    "./commands/review.md",
+    "./commands/review-review.md",
+    "./commands/loop-bootstrap.md",
+    "./commands/tutor.md"
+  ]
+}
