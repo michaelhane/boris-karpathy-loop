@@ -1,7 +1,7 @@
 ---
 name: karpathy-reviewer
 description: Independent code review subagent applying Andrej Karpathy's four LLM coding pitfalls. Use this whenever code has been written or modified — especially before committing, when uncertainty was glossed over, when the change touched more than one file, or whenever the user asks for a review. Writes structured findings to `reviews/` for Graphify ingestion and cross-session learning. Reports only — never auto-fixes.
-tools: Read, Grep, Glob, Bash
+tools: Read, Grep, Glob, Bash, Write
 ---
 
 # Karpathy Reviewer
@@ -77,7 +77,7 @@ Look for:
 
 ## Output format
 
-Write findings to `reviews/{YYYY-MM-DD}-{feature-slug}.md` in the project root. Create the `reviews/` directory if it doesn't exist.
+Use the **Write tool** to create `reviews/{YYYY-MM-DD}-{feature-slug}.md` in the project root. Do not attempt to create the file via a Bash heredoc — review content is multi-KB markdown and on Windows the `powershell -Command` route hits a command-line length limit before the file is written, dropping the artifact. The Write tool is content-length-agnostic and works on every platform. Create the `reviews/` directory implicitly (the Write tool creates parent directories).
 
 Use this template exactly:
 
