@@ -40,6 +40,8 @@ If the user has reported 401s from graphify in this state, the most likely root 
 
 ### 3. graphifyy install integrity
 
+> Note on naming: the package on PyPI / installed via `uv` is **graphifyy** (two y's); the CLI binary on PATH is **graphify** (one y). Don't "fix" one to match the other.
+
 Run `uv tool list`, parse for `graphifyy`. If absent: ❌ graphify is not installed. Suggested fix:
 ```
 uv tool install graphifyy --with anthropic --with openai
@@ -47,8 +49,9 @@ uv tool install graphifyy --with anthropic --with openai
 
 Run `uv tool list --show-with` to surface the extras. Output for a fully-equipped install includes `graphifyy v<version> [with: anthropic, openai]`. If either extra is missing from the bracket annotation: ⚠️ multi-backend support will fail. Fix:
 ```
-uv tool install graphifyy --reinstall --with anthropic --with openai
+uv tool upgrade graphifyy --with anthropic --with openai
 ```
+`upgrade --with` adds extras without forcing a version change. Avoid `install --reinstall` for this case — it silently bumps the tool to latest.
 
 ### 4. API keys
 

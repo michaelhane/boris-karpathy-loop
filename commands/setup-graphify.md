@@ -22,9 +22,10 @@ Then stop.
 
 Run all checks first; do **not** modify anything yet. Report results to the user.
 
+> Note on naming: the package on PyPI / installed via `uv` is **graphifyy** (two y's); the CLI binary on PATH is **graphify** (one y). Don't "fix" one to match the other.
+
 | Check | How |
 |---|---|
-| Plugin installed | `claude plugin list` includes `boris-karpathy-loop` |
 | Graphify Claude integration | `.claude/settings.json` exists |
 | Graph extracted | `graphify-out/graph.json` exists |
 | Graph report present | `graphify-out/GRAPH_REPORT.md` exists (cluster-only has run) |
@@ -64,10 +65,11 @@ Wait for explicit user confirmation before spending tokens.
 
 For each step: state what will run and why, wait for an explicit "go" / "y" / "ok" before running. If the user declines a step, skip it and continue.
 
-1. **Install graphifyy with backend SDKs** (only if missing extras):
+1. **Add backend SDKs to graphifyy** (only if missing extras):
    ```
-   uv tool install graphifyy --reinstall --with anthropic --with openai
+   uv tool upgrade graphifyy --with anthropic --with openai
    ```
+   `upgrade --with` adds the missing extras without forcing a version change. Reserve `install --reinstall` for the case where the tool itself is corrupt; do not use it just to add extras, since it silently bumps the user to latest.
 2. **Install graphify Claude integration** (only if `.claude/settings.json` missing):
    ```
    graphify claude install
