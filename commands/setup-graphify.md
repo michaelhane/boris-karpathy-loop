@@ -30,7 +30,7 @@ Run all checks first; do **not** modify anything yet. Report results to the user
 | Graph report present | `graphify-out/GRAPH_REPORT.md` exists (cluster-only has run) |
 | Graphify section in CLAUDE.md | grep `CLAUDE.md` for `graphify` |
 | API keys in env | check `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY` — **presence only**, never echo values |
-| graphifyy installed with extras | parse `uv tool list`; if extras not visible, try `uv tool show graphifyy` |
+| graphifyy installed with extras | `uv tool list --show-with` — output includes `[with: anthropic, openai]` for a fully-equipped install |
 | Hooks installed | `graphify hook status` reports `installed` for post-commit and post-checkout |
 | Spook-CLAUDE.md in home | `Test-Path $env:USERPROFILE/CLAUDE.md` (Win) / `test -f $HOME/CLAUDE.md` — warn if found |
 
@@ -77,7 +77,7 @@ For each step: state what will run and why, wait for an explicit "go" / "y" / "o
    ```
    graphify extract . --backend <chosen>
    ```
-   After completion, scan output for `chunk X/Y failed` lines. If found, surface them — graphify writes partial graph.json on failure and the cache will mask it on later runs. Do not proceed to step 4 with an obviously failed extract.
+   After completion, scan output (case-insensitive) for any line containing `chunk` AND (`fail` OR `error`) — the exact phrasing varies between graphify versions, so do not match a literal string. If found, surface them — graphify writes partial graph.json on failure and the cache will mask it on later runs. Do not proceed to step 4 with an obviously failed extract.
 4. **Generate report and visualization** (always run after extract — `extract` is headless):
    ```
    graphify cluster-only .
@@ -117,7 +117,7 @@ Output:
 
 - Do NOT run any step without explicit confirmation. The command **walks** the user through; it does not drive.
 - Do NOT echo API key values, ever. Presence-only checks; report `set` / `not set` / `looks like placeholder (e.g. literal "AIza...")`.
-- Do NOT assume `extract` succeeded based on exit code alone. Always scan output for `chunk X/Y failed`.
+- Do NOT assume `extract` succeeded based on exit code alone. Always scan output (case-insensitive) for `chunk` + (`fail` OR `error`) on the same line.
 - Do NOT skip `graphify cluster-only` after `extract` — they are two separate steps, not one.
 - Do NOT run `graphify claude install` in the user home directory. The entry guard catches one case but re-check `cwd` immediately before that step.
 - Do NOT auto-`git commit`. Stage and propose the message; the human types `git commit`.

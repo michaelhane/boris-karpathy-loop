@@ -144,8 +144,10 @@ Bad fit:
 ## Roadmap
 
 - v0.1 — initial release: skill, two subagents, four commands, two scripts
-- v0.2 — pre-commit hook, severity threshold tuning, `/tutor` learning-log review
-- v0.3 — tighter Graphify integration: review and learning files as typed graph nodes
+- v0.2 — `/setup-graphify` + `/diagnose-loop` (operational commands encoding day-one dogfood lessons)
+- v0.2.x — surgical fixes from in-loop review (tutor MC drift, `/loop-bootstrap` branch-mix, `/review` content-type judgment, naming-polish nits)
+- v0.3 — pre-commit hook, severity threshold tuning, `/tutor` learning-log review
+- v0.4 — tighter Graphify integration: review and learning files as typed graph nodes
 - v0.x — based on what dogfooding surfaces
 
 ## Sources & attribution

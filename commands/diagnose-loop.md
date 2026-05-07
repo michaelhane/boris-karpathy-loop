@@ -27,27 +27,16 @@ Suggested fix:
 - Windows: `Get-Process claude | Stop-Process -Force`
 - macOS/Linux: `pkill claude`
 
-### 2. Auth conflict (claude.ai login + API key both present)
+### 2. Auth paths configured (informational)
 
 - File: `~/.claude/.credentials.json` exists?
   - Windows: `Test-Path "$env:USERPROFILE\.claude\.credentials.json"`
   - macOS/Linux: `test -f "$HOME/.claude/.credentials.json"`
 - Env var: `ANTHROPIC_API_KEY` set?
 
-If **both** are true: ❌ auth conflict. Claude Code may prefer one over the other inconsistently across versions, leading to 401s or silent fallback to a wrong identity.
+If **both** are true: ⚠️ both auth paths are configured. Claude Code's precedence is well-defined and this is the documented setup for users on Claude Max who also want raw API access for tools like graphify — not a fault by itself.
 
-Suggested fix (official path first, env-var path as fallback):
-
-```
-# Inside claude:
-/logout
-# Then re-login and answer "No" when asked about API key approval.
-```
-
-If that doesn't resolve it, fallback (Windows):
-```
-[Environment]::SetEnvironmentVariable("ANTHROPIC_API_KEY", $null, "User")
-```
+If the user has reported 401s from graphify in this state, the most likely root cause is stale process state holding old env values — covered by check 1. Do not recommend `/logout` without an actual 401 report; signing the user out of the IDE will frustrate someone whose loop is otherwise working.
 
 ### 3. graphifyy install integrity
 
@@ -56,7 +45,7 @@ Run `uv tool list`, parse for `graphifyy`. If absent: ❌ graphify is not instal
 uv tool install graphifyy --with anthropic --with openai
 ```
 
-If present but extras are not visible in `uv tool list`, try `uv tool show graphifyy` to confirm `anthropic` and `openai` are in the install. If either is missing: ⚠️ multi-backend support will fail. Fix:
+Run `uv tool list --show-with` to surface the extras. Output for a fully-equipped install includes `graphifyy v<version> [with: anthropic, openai]`. If either extra is missing from the bracket annotation: ⚠️ multi-backend support will fail. Fix:
 ```
 uv tool install graphifyy --reinstall --with anthropic --with openai
 ```
@@ -65,8 +54,7 @@ uv tool install graphifyy --reinstall --with anthropic --with openai
 
 For each of `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY`:
 - Check presence (User-scope and current-shell). **Never echo the value.**
-- Detect placeholder typos: if the value is the literal string `AIza...`, `sk-ant-...`, `sk-...`, or contains a `...` ellipsis, flag as placeholder rather than real key.
-- For `GEMINI_API_KEY`: a real key starts with `AIzaSy` and is ~39 characters. If it starts with `AIza...` (literally with the trailing dots), it's the docs placeholder, not the real key.
+- Detect placeholder typos only — never assert positive shape (length, full prefix). Flag the value as a placeholder if it: contains a `...` ellipsis; equals a common dummy like `your_key`, `your-api-key`, `xxx`, `placeholder`; matches a docs snippet like literal `AIzaSy...` or `sk-ant-...`; or contains whitespace. Real-key validity cannot be known without an API call, which `/diagnose-loop` must not make — and a length/prefix heuristic that flags a working key is worse than no check.
 
 If **none** of the three is set: ❌ nothing will work. Suggested fix:
 ```
@@ -103,7 +91,7 @@ For each missing file: ⚠️ + the exact step that would create it:
 - `graphify-out/graph.json` missing → `graphify extract . --backend <gemini|claude|ollama>`
 - `graphify-out/GRAPH_REPORT.md` missing → `graphify cluster-only .` (uses existing graph, no extra LLM cost)
 
-If `graph.json` exists but is suspiciously small (<50 KB) or `cluster-only` was run on a partial extract, mention that the cache may be masking a previous failure — `graphify extract` output should be re-checked for `chunk X/Y failed` lines.
+If `graph.json` exists but is suspiciously small (<50 KB) or `cluster-only` was run on a partial extract, mention that the cache may be masking a previous failure — `graphify extract` output should be re-checked (case-insensitive) for any line containing `chunk` AND (`fail` OR `error`).
 
 ### 7. Spook-CLAUDE.md in user home
 
