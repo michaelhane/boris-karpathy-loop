@@ -66,6 +66,10 @@ graphify hook install
 ```bash
 cd your-project
 
+# First time in this project: detect state, install graphify,
+# wire up hooks, propose the initial commit. Refuses to run in $HOME.
+/setup-graphify
+
 # Session start: load past reviews, graph context, learning history
 /loop-bootstrap
 
@@ -78,8 +82,12 @@ cd your-project
 # Completed a meaningful change? Before commit:
 /review
 
-# Periodically:
+# Periodically: re-evaluate stale findings
 /review-review
+
+# When something feels off — silent failures, missing keys,
+# broken hooks, stale process state — read-only health check:
+/diagnose-loop
 
 # Promote durable findings into anti-patterns:
 python scripts/extract_patterns.py \
@@ -98,6 +106,8 @@ python scripts/extract_patterns.py \
 | `/review-review` | `commands/review-review.md` | Re-evaluate stale findings |
 | `/loop-bootstrap` | `commands/loop-bootstrap.md` | Session start — load reviews + graph + learning history |
 | `/tutor` | `commands/tutor.md` | Invoke deep teaching mode |
+| `/setup-graphify` | `commands/setup-graphify.md` | Per-project setup walk-through — detect state, prompt for choices, execute with confirmation |
+| `/diagnose-loop` | `commands/diagnose-loop.md` | Read-only health check; reports issues + fix commands, never auto-fixes |
 | Pattern extractor | `scripts/extract_patterns.py` | Promote closed findings into the anti-pattern guide |
 | Skill regenerator | `scripts/regen_skill.py` | Sync `boris-cherny-way` skill from the KB (activates once KB is published) |
 

@@ -226,3 +226,65 @@ After 2 weeks, decide:
 - [ ] README attribution verified by you
 - [ ] Repo public on GitHub
 - [ ] v0.1.0 tag pushed
+
+## Phase E — v0.2 release
+
+v0.2 adds two operational commands (`/setup-graphify`, `/diagnose-loop`) that
+encode the day-one dogfood lessons. Strict additions only — no changes to
+existing v0.1 commands, agents, or skills.
+
+### E1. Validate the manifest (B0 gate)
+```bash
+claude plugin validate .
+```
+Catches schema errors before install attempts. Enforced by COMMIT_PLAN B0.
+
+### E2. Manual test: `/setup-graphify` in a fresh non-home project
+A natural target is `bo-karpa-loop` itself — per `the-boris-cherny-way/guides/loop-workflow.md` section 12 the repo sits as plugin ✅ but graphify ⏸:
+```
+cd C:\Users\micha\Projects\bo-karpa-loop
+claude
+# inside claude:
+/boris-karpathy-loop:setup-graphify
+```
+Expected: state-detection report, decisions prompt only for what couldn't be
+auto-detected, cost estimate before extraction, per-step confirmation, ends
+with `git add` + a suggested commit message (no auto-`git commit`).
+
+### E3. Manual test: `/diagnose-loop` identifies a known issue
+Force a failure first — e.g. delete `graphify-out/GRAPH_REPORT.md` or
+temporarily unset `GEMINI_API_KEY` in the current shell — then run:
+```
+/boris-karpathy-loop:diagnose-loop
+```
+Expected: ⚠️ or ❌ on the broken check, exact fix command in a code block,
+zero modifications made by the diagnose command itself.
+
+### E4. `/review` on the cumulative v0.2 diff
+From inside `bo-karpa-loop`:
+```
+/boris-karpathy-loop:review
+```
+The diff is the four v0.2 commits. Address any substantial findings in
+additional commits before tagging.
+
+### E5. Tag v0.2.0
+```
+git tag -a v0.2.0 -m "v0.2.0 — /setup-graphify + /diagnose-loop"
+git push origin v0.2.0   # only when/if the repo is public
+```
+
+## Definition of done for v0.2.0
+
+- [ ] `commands/setup-graphify.md` exists with frontmatter and clear step-by-step instructions
+- [ ] `commands/diagnose-loop.md` exists with frontmatter and clear step-by-step instructions
+- [ ] `.claude-plugin/plugin.json` registers both new commands; version bumped to `0.2.0`
+- [ ] `README.md` updated: Quick start + "What's in the box" table
+- [ ] `COMMIT_PLAN.md` has Phase E for v0.2 release
+- [ ] `claude plugin validate .` passes (B0 gate)
+- [ ] Manual test E2: `/setup-graphify` walks through full flow without errors in a fresh non-home project
+- [ ] Manual test E3: `/diagnose-loop` correctly identifies a known issue and outputs the right fix command
+- [ ] No auto-fixes in `/diagnose-loop` — read-only verified
+- [ ] No API keys logged anywhere — values never echoed
+- [ ] `/review` on cumulative v0.2 diff has no unaddressed substantial findings
+- [ ] v0.2.0 tag created (push when/if going public)
