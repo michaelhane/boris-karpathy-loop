@@ -5,9 +5,14 @@ description: Apply Boris Cherny-style Claude Code workflow discipline. Maintain 
 
 # The Boris Cherny Way
 
-A workflow skill that captures Boris Cherny-style discipline for productive Claude Code sessions. Distilled from the `the-boris-cherny-way` knowledge base.
+A workflow skill that captures Boris Cherny-style discipline for productive
+Claude Code sessions. Distilled from the `the-boris-cherny-way` knowledge base.
 
-**Core philosophy:** Claude is a junior engineer with perfect recall — give it structure, log decisions, compound across sessions.
+**Core philosophy:** Claude is a junior engineer with perfect recall — give it
+structure, log decisions, compound across sessions.
+
+> Synced from KB on 2026-05-07. Source guides: 7. To regenerate:
+> `python scripts/regen_skill.py`
 
 ## When to apply this skill
 
@@ -55,10 +60,13 @@ project/
 ├── PROJECT_STATE.md       # live status, refreshed each session
 ├── CHANGELOG.md           # append-only log of learnings
 └── guides/
-    ├── prompting.md       # what works for this project's prompts
-    ├── workflows.md       # proven multi-step flows
-    ├── debugging.md       # gotchas + fixes
-    └── anti-patterns.md   # what NOT to do, with reasoning
+│   ├── anti-patterns.md         # Anti-Patronen — The Boris Cherny Way
+│   ├── context-management.md    # Context Management — The Boris Cherny Way
+│   ├── debugging.md             # Debugging Strategieën — The Boris Cherny Way
+│   ├── loop-workflow.md         # Boris-Karpathy-Loop \+ Graphify — Stappenplan
+│   ├── prompting.md             # Effectief Prompten — The Boris Cherny Way
+│   ├── skills-hooks.md          # Skills, Hooks & Automatisering — The Boris Cherny Way
+│   └── workflows.md             # Bewezen Workflows — The Boris Cherny Way
 ```
 
 ## Principles
@@ -79,8 +87,11 @@ project/
 ## Pairs well with
 
 - `karpathy-reviewer` subagent — captures coding-time findings that feed `guides/anti-patterns.md` over time.
+- `karpathy-tutor` subagent — deep teaching when you want to actually learn something instead of just shipping it.
 - `graphify` CLI — indexes `guides/` so future sessions can query the knowledge base structurally.
 
 ## Attribution
 
-Inspired by the pragmatic Claude Code style associated with Boris Cherny (Anthropic engineer). This skill is a workflow distillation — Boris Cherny has not endorsed or contributed to this content.
+Inspired by the pragmatic Claude Code style associated with Boris Cherny
+(Anthropic engineer). This skill is a workflow distillation — Boris Cherny
+has not endorsed or contributed to this content.
