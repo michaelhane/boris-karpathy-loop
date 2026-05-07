@@ -1,6 +1,6 @@
 {
   "name": "boris-karpathy-loop",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Boris-style workflow discipline plus Karpathy-inspired review and tutoring subagents. Findings and lessons land on disk for cross-session learning. Designed to compound with Graphify-indexed knowledge.",
   "author": {
     "name": "michaelhane",
@@ -19,6 +19,8 @@
     "./commands/review.md",
     "./commands/review-review.md",
     "./commands/loop-bootstrap.md",
-    "./commands/tutor.md"
+    "./commands/tutor.md",
+    "./commands/setup-graphify.md",
+    "./commands/diagnose-loop.md"
   ]
 }
