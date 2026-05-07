@@ -276,15 +276,79 @@ git push origin v0.2.0   # only when/if the repo is public
 
 ## Definition of done for v0.2.0
 
-- [ ] `commands/setup-graphify.md` exists with frontmatter and clear step-by-step instructions
-- [ ] `commands/diagnose-loop.md` exists with frontmatter and clear step-by-step instructions
-- [ ] `.claude-plugin/plugin.json` registers both new commands; version bumped to `0.2.0`
-- [ ] `README.md` updated: Quick start + "What's in the box" table
-- [ ] `COMMIT_PLAN.md` has Phase E for v0.2 release
-- [ ] `claude plugin validate .` passes (B0 gate)
-- [ ] Manual test E2: `/setup-graphify` walks through full flow without errors in a fresh non-home project
-- [ ] Manual test E3: `/diagnose-loop` correctly identifies a known issue and outputs the right fix command
-- [ ] No auto-fixes in `/diagnose-loop` — read-only verified
-- [ ] No API keys logged anywhere — values never echoed
-- [ ] `/review` on cumulative v0.2 diff has no unaddressed substantial findings
-- [ ] v0.2.0 tag created (push when/if going public)
+- [x] `commands/setup-graphify.md` exists with frontmatter and clear step-by-step instructions
+- [x] `commands/diagnose-loop.md` exists with frontmatter and clear step-by-step instructions
+- [x] `.claude-plugin/plugin.json` registers both new commands; version bumped to `0.2.0`
+- [x] `README.md` updated: Quick start + "What's in the box" table
+- [x] `COMMIT_PLAN.md` has Phase E for v0.2 release
+- [x] `claude plugin validate .` passes (B0 gate)
+- [x] Manual test E2: `/setup-graphify` walks through full flow without errors in a fresh non-home project
+- [x] Manual test E3: `/diagnose-loop` correctly identifies a known issue and outputs the right fix command
+- [x] No auto-fixes in `/diagnose-loop` — read-only verified
+- [x] No API keys logged anywhere — values never echoed
+- [x] `/review` on cumulative v0.2 diff has no unaddressed substantial findings (4 concerns surfaced, all addressed in `130b720`)
+- [x] v0.2.0 tag created (push when/if going public) — local tag at `130b720`
+
+## Phase F — v0.2.1 patch release
+
+v0.2.1 fixes the karpathy-reviewer file-write fragility surfaced
+during v0.2 dogfood (multi-KB markdown via PowerShell heredoc hits
+the Windows command-line length limit), plus the 3 nits deferred
+during the v0.2 release.
+
+### F1. Validate manifest (B0 gate)
+```bash
+claude plugin validate .
+```
+Same gate as B0/E1. Caught nothing this time — no schema-shape
+changes between 0.2.0 and 0.2.1.
+
+### F2. Smoke test the reviewer file-write fix
+The smoke test for the Write-tool addition is the reviewer
+itself: if it can persist its own review of the v0.2.1 commits,
+the fix works. Empirical, not isolated. Sufficient for a
+slash-command plugin where adding a controlled-reproduction
+harness would dominate the cost of the fix.
+
+```
+/boris-karpathy-loop:review
+# range prompt: HEAD~3..HEAD
+```
+
+Expected: file `reviews/2026-05-07-v0.2.1-*.md` written without
+timeout, summary printed inline, no parser-abort.
+
+### F3. Address review findings
+The v0.2.1 review (`reviews/2026-05-07-v0.2.1-fixups.md`)
+surfaced:
+- **0 blockers**
+- **1 concern** (verification gap): the Write-tool fix is
+  reasoned but not isolated-reproduced. Disposition: not
+  addressed in code. The successful F2 smoke test is the
+  empirical verification; an isolated harness would be overkill
+  for a slash-command plugin.
+- **2 nits**:
+  1. Duplicated naming-note prose across `setup-graphify.md`
+     and `diagnose-loop.md`. Disposition: leave as-is. Each
+     command file is self-contained; a 2-line note in both is
+     reasonable for clarity.
+  2. `COMMIT_PLAN.md` stale + missing v0.2.1 tag.
+     Disposition: addressed by this very commit and the tag
+     immediately after.
+
+### F4. Tag v0.2.1
+```
+git tag -a v0.2.1 -m "v0.2.1 — reviewer file-write fix + 3 nits"
+git push origin v0.2.1   # only when/if the repo is public
+```
+
+## Definition of done for v0.2.1
+
+- [x] `agents/karpathy-reviewer.md` frontmatter includes `Write` tool
+- [x] `agents/karpathy-reviewer.md` body explicitly directs Write-tool usage for the review artifact
+- [x] 3 deferred nits from v0.2 review addressed (tautological row dropped, naming note added, `--reinstall` → `upgrade`)
+- [x] `.claude-plugin/plugin.json` bumped to `0.2.1`
+- [x] B0 schema validation passed before manifest commit
+- [x] F2 smoke test successful — `reviews/2026-05-07-v0.2.1-fixups.md` written on first try, no timeout
+- [x] Two unaddressed review findings have written justifications (F3)
+- [x] v0.2.1 tag created
