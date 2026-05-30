@@ -517,6 +517,6 @@ manual `graphify update .`.
 - [x] Live `.git/hooks/post-commit` patched; re-running the script is a no-op
 - [x] `.claude-plugin/plugin.json` bumped to `0.2.3`
 - [x] `claude plugin validate .` passes (B0 gate)
-- [ ] Acceptance: v0.2.3 release commit fires the hook — no null-byte warning, rebuild log written, `GRAPH_REPORT.md` "Built from commit" == new HEAD with no manual step
-- [ ] `/review` on the v0.2.3 diff has no unaddressed substantial findings
-- [ ] v0.2.3 tag created
+- [x] Acceptance: v0.2.3 release commit `c40ea11` fired the hook — no null-byte warning; `~/.cache/graphify-rebuild.log` created with `Rebuilt: 290 nodes, 294 edges`; `GRAPH_REPORT.md` "Built from commit" == `c40ea115` (new HEAD), no manual step
+- [x] `/review` on the v0.2.3 diff has no unaddressed substantial findings (0 blockers; 1 concern resolved by the acceptance test above; 3 nits dispositioned in H5)
+- [x] v0.2.3 tag created
