@@ -433,7 +433,7 @@ git tag -a v0.2.2 -m "v0.2.2 — fix invalid 'uv tool upgrade --with' in /diagno
 - [x] `/review` on the v0.2.2 diff has no unaddressed substantial findings — 0 blockers, 0 concerns, 2 nits (`reviews/2026-05-30-v0.2.2-uv-tool-install-fix.md`); both nits are bookkeeping and dispositioned
 - [x] v0.2.2 tag created
 
-## Phase H — v0.2.3 (planned): post-commit graphify hook reliability
+## Phase H — v0.2.3: post-commit graphify hook reliability
 
 Surfaced during the v0.2.2 wrap: the post-commit hook fired with
 `ignored null byte in input` and did **not** refresh `GRAPH_REPORT.md`
@@ -445,3 +445,78 @@ hand). The auto-update is unreliable on Windows/Git-Bash.
 - **Non-goal**: rewriting graphify itself; changing hook behavior on macOS/Linux (only the Windows null-byte path is in scope).
 - **Decision**: inspect `.git/hooks/post-commit` (~line 23); the null byte almost certainly comes from a command-substitution reading binary/CRLF `git` output — sanitize (`tr -d '\0'`) or change the capture. Keep it AST-only (`graphify update .`, no API cost).
 - **Acceptance**: make a trivial commit on Windows; confirm `GRAPH_REPORT.md`'s "Built from commit" matches the new HEAD with no manual step and no `ignored null byte` warning.
+
+### Root cause (confirmed — the brief's "Decision" hypothesis was incomplete)
+
+The null byte does **not** come from CRLF `git` output. It comes from the
+hook's *interpreter detection* (hook lines 18–47). On Windows/Git-Bash
+`command -v graphify` returns the **extension-less** path
+(`/c/Users/.../graphify`) even though the real launcher is `graphify.exe`
+— a PE32+ binary. The `case` at ~line 21 only treats `*.exe` specially, so
+the extension-less path falls through to `head -1 "$GRAPHIFY_BIN"`, which
+reads the binary's `MZ` header; `$(...)` then strips the embedded NUL and
+bash warns `ignored null byte in input`. Reproduced 1-for-1.
+
+Investigation surfaced a **second, larger problem the brief missed**: even
+with the warning suppressed, the hook's fallback runs a *system*
+`python`/`python3`, neither of which can `import graphify` (it is
+uv-isolated under `AppData/Roaming/uv/tools/graphifyy/`). So the detached
+rebuild would hit `exit 0` and silently no-op. Evidence:
+`~/.cache/graphify-rebuild.log` did not exist — the background rebuild had
+**never run** on this machine. The graph stayed fresh only because
+`graphify update .` was run by hand. Fixing the null byte alone would not
+have satisfied the acceptance test.
+
+### H1. Fix approach — drive the CLI, don't reconstruct the interpreter
+
+Rather than patch the shebang read, short-circuit the whole detection on
+the Windows `.exe` path and call the launcher directly:
+`graphify update .` (an AST-only CLI command, "no LLM needed" per
+`graphify --help`). The `.exe` launcher resolves its own venv interpreter,
+so no system-python guessing is needed. This kills **both** problems at
+once and is a no-op on macOS/Linux (the `*.exe`/sibling-`.exe` guard never
+matches there), honoring the non-goal.
+
+### H2. Durable artifact: `scripts/fix_graphify_hook.py`
+
+`.git/hooks/` is not version-controlled and `graphify hook install`
+overwrites it, so the fix lives as a re-runnable patcher (decision:
+"repo-script + live patch"). It inserts the short-circuit after the
+`GRAPHIFY_BIN=$(command -v graphify …)` anchor. Idempotent (second run =
+"already patched"); fails loudly if the hook is absent, not
+graphify-installed, or its shape drifted so the anchor is gone. Mirrors the
+existing `scripts/*.py` style (`--dry-run`, argparse). Passes `ruff`,
+`ruff format`, and `ty`.
+
+### H3. Validate + bump
+
+```
+claude plugin validate .        # B0 gate
+```
+`.claude-plugin/plugin.json` → 0.2.3.
+
+### H4. Acceptance test = the v0.2.3 release commit itself
+
+The release commit triggers the patched hook. Watch for: no
+`ignored null byte` warning, `~/.cache/graphify-rebuild.log` created, and
+`GRAPH_REPORT.md`'s "Built from commit" advancing to the new HEAD with no
+manual `graphify update .`.
+
+### H5. Review dispositions (`reviews/2026-05-30-v0.2.3-hook-fix.md` — 0 blockers, 1 concern, 3 nits)
+
+- **CONCERN — acceptance test unrun (Principle 4):** the only substantial finding. Resolved by H4 — the v0.2.3 release commit fires the hook; evidence (no null-byte warning, log completion line + node count, stamp == new HEAD) captured below before the box is checked. Not dispositioned away.
+- **NIT 1 — dropped `GRAPHIFY_FORCE`/`--force` (Principle 3):** *not* a silent delta. `graphify update` documents `GRAPHIFY_FORCE=1` env support, and the env var is inherited by the detached `nohup` subprocess, so the original behavior is preserved; `--force` recovers it explicitly if ever needed. Left as-is.
+- **NIT 2 — implicit post-commit CWD (Principle 1):** identical to the original hook's assumption (git runs `post-commit` at the worktree root, so `.` is the repo). No regression. Left as-is.
+- **NIT 3 — idempotency reinstall note (Principle 4):** already documented in the `scripts/fix_graphify_hook.py` module docstring ("run it again after any reinstall"). No change.
+
+## Definition of done for v0.2.3
+
+- [x] Root cause confirmed empirically (extension-less `command -v` + binary `.exe`; reproduced the warning)
+- [x] Second failure mode found and documented (uv-isolated graphify unimportable by system python; rebuild never ran)
+- [x] `scripts/fix_graphify_hook.py` created — idempotent, fail-loud, `--dry-run`, lint/format/type clean
+- [x] Live `.git/hooks/post-commit` patched; re-running the script is a no-op
+- [x] `.claude-plugin/plugin.json` bumped to `0.2.3`
+- [x] `claude plugin validate .` passes (B0 gate)
+- [ ] Acceptance: v0.2.3 release commit fires the hook — no null-byte warning, rebuild log written, `GRAPH_REPORT.md` "Built from commit" == new HEAD with no manual step
+- [ ] `/review` on the v0.2.3 diff has no unaddressed substantial findings
+- [ ] v0.2.3 tag created

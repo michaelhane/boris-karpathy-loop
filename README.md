@@ -110,6 +110,7 @@ python scripts/extract_patterns.py \
 | `/diagnose-loop` | `commands/diagnose-loop.md` | Read-only health check; reports issues + fix commands, never auto-fixes |
 | Pattern extractor | `scripts/extract_patterns.py` | Promote closed findings into the anti-pattern guide |
 | Skill regenerator | `scripts/regen_skill.py` | Sync `boris-cherny-way` skill from the KB (activates once KB is published) |
+| Hook fixer (Windows) | `scripts/fix_graphify_hook.py` | Patch the graphify post-commit hook so it refreshes the graph reliably on Windows (idempotent; re-run after `graphify hook install`) |
 
 ## Why three layers + a tutor
 
