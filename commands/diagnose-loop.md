@@ -133,7 +133,7 @@ End with a single suggested next-step in priority order:
 Example:
 
 > 3 issues found. Suggested order:
-> 1. Resolve auth conflict (`/logout` then re-login).
+> 1. Resolve auth conflict — only if a 401 was reported (`/logout`, then re-login).
 > 2. Reinstall graphifyy with extras.
 > 3. Run `graphify cluster-only .` to generate the missing report.
 

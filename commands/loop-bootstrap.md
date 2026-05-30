@@ -6,9 +6,9 @@ Run this at the start of every working session in a project that uses boris-karp
 
 ## Steps
 
-1. **Reviews.** If `reviews/_index.md` exists, read it. List open findings with file references.
+1. **Reviews.** If `reviews/` exists, read each review file's front-matter `status:` — **this is the source of truth, not `_index.md`'s prose.** List findings whose review is `status: open`, with file references. If `_index.md` disagrees with any front-matter `status:` (a review reads `open` in its file but `_index` shows it resolved, or the reverse), that is **status-drift** — surface it and suggest `/review-review` to reconcile.
 2. **Graph.** If `graphify-out/GRAPH_REPORT.md` exists, read it. Note the commit hash it was built from.
-3. **Drift check.** Compare graph commit hash to `git rev-parse HEAD`. If they differ by more than ~5 commits, mention that the graph may be stale and suggest running `/graphify . --update`.
+3. **Drift check.** (a) *Graph:* compare the graph commit hash to `git rev-parse HEAD`; if they differ by more than ~5 commits, mention the graph may be stale and suggest running `/graphify . --update`. (b) *Reviews:* for each `status: open` review, compare its `commit_hash` to HEAD; if the cited code has moved many commits on, it is a **stale-open candidate** — the fix may have shipped without the status being flipped (a *false-open*, the mirror of the false-close). Suggest `/review-review` to reconcile.
 4. **Anti-patterns.** If a globally-installed `the-boris-cherny-way` guides directory is referenced, optionally surface relevant entries from `guides/anti-patterns.md`.
 5. **State explicitly to the user**, in this format:
 
@@ -17,6 +17,7 @@ Run this at the start of every working session in a project that uses boris-karp
    • <N> open review findings (most recent: <date>, <feature>)
    • Graph snapshot from <short hash> (<X commits behind / current>)
    • Anti-patterns potentially relevant: <list or "none surfaced">
+   • <only if detected> ⚠ status-drift: <review> reads <status> but <evidence> — run /review-review
 
    Ready for today's task.
    ```

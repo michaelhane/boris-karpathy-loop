@@ -520,3 +520,68 @@ manual `graphify update .`.
 - [x] Acceptance: v0.2.3 release commit `c40ea11` fired the hook — no null-byte warning; `~/.cache/graphify-rebuild.log` created with `Rebuilt: 290 nodes, 294 edges`; `GRAPH_REPORT.md` "Built from commit" == `c40ea115` (new HEAD), no manual step
 - [x] `/review` on the v0.2.3 diff has no unaddressed substantial findings (0 blockers; 1 concern resolved by the acceptance test above; 3 nits dispositioned in H5)
 - [x] v0.2.3 tag created
+
+## Phase I — v0.2.4: reconcile open reviews + close the status-drift loop
+
+Discovered by running Phase D4 (dogfood metrics, `reviews/_metrics.md`): two
+reviews sat `status: open` while their findings were already fixed in code —
+the **false-open**, mirror of the v0.2.1→v0.2.2 false-close. The loop already
+had the machinery to prevent it (`/review-review` writes status back) but
+nothing *triggered* it, and `/loop-bootstrap` trusted `_index.md`'s prose over
+the per-review `status:` front-matter.
+
+**Brief**
+- **Problem:** review `status:` drifts from reality — fixes ship without the
+  review/`_index` being flipped, so `_index` lies and loop-bootstrap mis-reports.
+- **Goal:** reconcile the two open reviews accurately, and make the drift
+  detectable at session start so it self-corrects.
+- **Non-goal:** no new severity rubric, no `close_finding.py` script (YAGNI at 4
+  reviews), no change to `/review`'s finding logic.
+- **Decision:** front-matter `status:` is the source of truth, `_index.md` is
+  derived. `/loop-bootstrap` detects drift; `/review-review` (already writes
+  back) reconciles it; same-commit flipping is the happy path.
+- **Acceptance:** both open reviews resolved with attributed footers; `_index`
+  synced; loop-bootstrap flags a stale-open on its next run; `claude plugin
+  validate .` passes; `/review` on the diff has no unaddressed substantial finding.
+
+### I1. Reconcile the two open reviews
+- `v0.2-setup-and-diagnose` (`open` → `resolved`): all 4 concerns fixed in
+  `130b720`, nits in `fe5ab5c`; Resolution footer attributes each. The one C4
+  residual (un-caveated `/logout` in the canned Example) is fixed in this diff
+  (`commands/diagnose-loop.md`).
+- `v0.2.2-uv-tool-install-fix` (`open` → `closed`): both nits left as-is,
+  defensible; Resolution footer + `_index` line.
+
+### I2. Close the status-drift loop (signal #5)
+- `commands/loop-bootstrap.md`: front-matter `status:` is the source of truth
+  (not `_index` prose); drift check (b) flags stale-open reviews whose
+  `commit_hash` trails HEAD → suggest `/review-review`; optional drift line in
+  the output format.
+- `commands/review-review.md`: new "## Closing the loop" section documents the
+  three-layer lifecycle (same-commit → loop-bootstrap detection → review-review
+  catch-up) and the `close_finding.py` revisit-trigger. Its write-back logic was
+  already correct and is unchanged.
+
+### I3. Validate + bump
+- `.claude-plugin/plugin.json` 0.2.3 → 0.2.4.
+- `claude plugin validate .` (B0 gate).
+
+### I4. Review dispositions (`reviews/2026-05-30-v0.2.4-status-drift-closeout.md` — 0 blockers, 2 concerns, 2 nits)
+- **CONCERN (N4 misattribution):** fixed — footer re-cited `fe5ab5c` → `130b720` (verified `fe5ab5c` never touched README).
+- **CONCERN (`/review-review` enumerated from `_index`):** fixed — step 1 now globs `reviews/*.md` and reads front-matter, demoting `_index` to a derived view.
+- **NIT (`_metrics.md` stale hypothesis):** fixed — superseded-marker added inline.
+- **NIT (C3 quote):** rejected with evidence — phrase is verbatim at `setup-graphify.md:82`. Review flipped `open` → `closed` in-session (layer-1 discipline).
+
+## Definition of done for v0.2.4
+
+- [x] Phase D4 metrics computed → `reviews/_metrics.md`
+- [x] `v0.2-setup-and-diagnose` reconciled `open` → `resolved` with attributed footer
+- [x] `v0.2.2-uv-tool-install-fix` reconciled `open` → `closed` with footer
+- [x] `_index.md` synced for both
+- [x] C4 residual (Example `/logout`) fixed in `commands/diagnose-loop.md`
+- [x] `/loop-bootstrap` uses front-matter as source of truth + flags stale-open
+- [x] `/review-review` documents the three-layer lifecycle
+- [x] `.claude-plugin/plugin.json` bumped to `0.2.4`
+- [x] `claude plugin validate .` passes (B0 gate)
+- [x] `/review` on the v0.2.4 diff: 2 concerns + 1 nit fixed in-session, 1 nit rejected with evidence — no unaddressed substantial findings (`reviews/2026-05-30-v0.2.4-status-drift-closeout.md`)
+- [ ] v0.2.4 tag created
