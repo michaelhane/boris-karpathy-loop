@@ -49,9 +49,9 @@ uv tool install graphifyy --with anthropic --with openai
 
 Run `uv tool list --show-with` to surface the extras. Output for a fully-equipped install includes `graphifyy v<version> [with: anthropic, openai]`. If either extra is missing from the bracket annotation: ⚠️ multi-backend support will fail. Fix:
 ```
-uv tool upgrade graphifyy --with anthropic --with openai
+uv tool install graphifyy --with anthropic --with openai
 ```
-`upgrade --with` adds extras without forcing a version change. Avoid `install --reinstall` for this case — it silently bumps the tool to latest.
+`install --with` adds the missing extras to the existing tool environment without bumping the base version (upgrades are opt-in via `-U`/`--upgrade` — verified empirically: `install --with` on a pinned tool keeps the pinned version). `uv tool upgrade` has **no** `--with` flag — `uv tool upgrade graphifyy --with ...` errors with `unexpected argument '--with'`. Avoid `install --reinstall` here too — it silently bumps the tool to latest.
 
 ### 4. API keys
 

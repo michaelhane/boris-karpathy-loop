@@ -67,9 +67,9 @@ For each step: state what will run and why, wait for an explicit "go" / "y" / "o
 
 1. **Add backend SDKs to graphifyy** (only if missing extras):
    ```
-   uv tool upgrade graphifyy --with anthropic --with openai
+   uv tool install graphifyy --with anthropic --with openai
    ```
-   `upgrade --with` adds the missing extras without forcing a version change. Reserve `install --reinstall` for the case where the tool itself is corrupt; do not use it just to add extras, since it silently bumps the user to latest.
+   `install --with` adds the missing extras to the existing tool environment without bumping the base version (upgrades are opt-in via `-U`/`--upgrade`; `uv tool upgrade` has **no** `--with` flag and errors on it). Reserve `install --reinstall` for the case where the tool itself is corrupt; do not use it just to add extras, since it silently bumps the user to latest.
 2. **Install graphify Claude integration** (only if `.claude/settings.json` missing):
    ```
    graphify claude install

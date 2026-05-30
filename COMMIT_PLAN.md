@@ -352,3 +352,83 @@ git push origin v0.2.1   # only when/if the repo is public
 - [x] F2 smoke test successful — `reviews/2026-05-07-v0.2.1-fixups.md` written on first try, no timeout
 - [x] Two unaddressed review findings have written justifications (F3)
 - [x] v0.2.1 tag created
+
+## Phase G — v0.2.2 patch release
+
+v0.2.2 fixes a **broken remediation command** shipped in v0.2.1 and
+caught by finally running the v0.2.1 review's deferred verification step.
+
+### The bug
+
+The v0.2 review nit "`--reinstall` silently bumps the version" was fixed
+in v0.2.1 by swapping `uv tool install --reinstall` → `uv tool upgrade
+--with` in the missing-extras branch of both `/diagnose-loop` and
+`/setup-graphify`. **`uv tool upgrade` has no `--with` flag.** The
+shipped fix errors out:
+
+```
+$ uv tool upgrade graphifyy --with anthropic
+error: unexpected argument '--with' found
+```
+
+The v0.2.1 review recorded this exact line as verification_needed #3
+("confirm `uv tool upgrade … --with` adds the extras"). Phase F3
+dispositioned it as "covered by the F2 smoke test" — but F2 only
+exercised the reviewer's Write path, never the setup/diagnose upgrade
+command. **The disposition was a false-closed verification:** the
+finding was written down, then waved through without being run. This is
+the loop catching its own gap — principle 4 ("absence of verification is
+itself a finding") applied to a finding that existed on paper but was
+dispositioned away unverified.
+
+### G1. Verify the correct command empirically
+
+`uv tool install --with` is the documented way to add packages to an
+existing tool; base-version upgrades are opt-in via `-U`/`--upgrade`.
+Confirmed with a throwaway tool (the real `graphifyy` was never touched):
+
+```
+uv tool install 'cowsay==5.0'            # cowsay v5.0
+uv tool install cowsay --with iniconfig  # cowsay v5.0 [with: iniconfig]  ← base version unchanged
+uv tool uninstall cowsay
+```
+
+Base version stayed `5.0`; the extra was added. So `uv tool install
+graphifyy --with anthropic --with openai` matches the original intent
+(add extras, no version bump) without the invalid flag.
+
+### G2. Fix both command files
+
+- `commands/diagnose-loop.md` — missing-extras branch → `uv tool install
+  … --with …`, prose corrected with an explicit "`upgrade` has no
+  `--with`" warning.
+- `commands/setup-graphify.md` — same.
+
+Historical review artifacts under `reviews/` are left untouched — they
+are the record, including the v0.2 review line that first recommended the
+wrong command.
+
+### G3. Validate manifest + bump
+
+```
+claude plugin validate .   # passed
+```
+`.claude-plugin/plugin.json` → 0.2.2.
+
+### G4. Re-review + tag
+
+```
+/boris-karpathy-loop:review     # range: the v0.2.2 working diff
+git tag -a v0.2.2 -m "v0.2.2 — fix invalid 'uv tool upgrade --with' in /diagnose-loop + /setup-graphify"
+```
+
+## Definition of done for v0.2.2
+
+- [x] Both command files use `uv tool install --with` for the missing-extras branch
+- [x] Prose in both files warns that `uv tool upgrade` has no `--with` flag
+- [x] Correct command verified empirically (throwaway tool, base version unchanged)
+- [x] `.claude-plugin/plugin.json` bumped to `0.2.2`
+- [x] B0 schema validation passed before manifest commit
+- [x] v0.2.1 review status reconciled (verification_needed #3 was a real bug, now fixed)
+- [x] `/review` on the v0.2.2 diff has no unaddressed substantial findings — 0 blockers, 0 concerns, 2 nits (`reviews/2026-05-30-v0.2.2-uv-tool-install-fix.md`); both nits are bookkeeping and dispositioned
+- [x] v0.2.2 tag created
