@@ -432,3 +432,16 @@ git tag -a v0.2.2 -m "v0.2.2 — fix invalid 'uv tool upgrade --with' in /diagno
 - [x] v0.2.1 review status reconciled (verification_needed #3 was a real bug, now fixed)
 - [x] `/review` on the v0.2.2 diff has no unaddressed substantial findings — 0 blockers, 0 concerns, 2 nits (`reviews/2026-05-30-v0.2.2-uv-tool-install-fix.md`); both nits are bookkeeping and dispositioned
 - [x] v0.2.2 tag created
+
+## Phase H — v0.2.3 (planned): post-commit graphify hook reliability
+
+Surfaced during the v0.2.2 wrap: the post-commit hook fired with
+`ignored null byte in input` and did **not** refresh `GRAPH_REPORT.md`
+(it stayed at the previous commit until `graphify update .` was run by
+hand). The auto-update is unreliable on Windows/Git-Bash.
+
+- **Problem**: the graphify post-commit hook errors (`ignored null byte in input`) on Windows and leaves `GRAPH_REPORT.md` stale after a commit, so the graph silently drifts from HEAD until someone runs `graphify update .` manually.
+- **Goal**: a post-commit hook that reliably refreshes `graph.json` + `GRAPH_REPORT.md` after each commit on Windows Git-Bash — or fails loudly instead of silently.
+- **Non-goal**: rewriting graphify itself; changing hook behavior on macOS/Linux (only the Windows null-byte path is in scope).
+- **Decision**: inspect `.git/hooks/post-commit` (~line 23); the null byte almost certainly comes from a command-substitution reading binary/CRLF `git` output — sanitize (`tr -d '\0'`) or change the capture. Keep it AST-only (`graphify update .`, no API cost).
+- **Acceptance**: make a trivial commit on Windows; confirm `GRAPH_REPORT.md`'s "Built from commit" matches the new HEAD with no manual step and no `ignored null byte` warning.
