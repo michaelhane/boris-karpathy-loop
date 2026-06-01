@@ -584,4 +584,142 @@ the per-review `status:` front-matter.
 - [x] `.claude-plugin/plugin.json` bumped to `0.2.4`
 - [x] `claude plugin validate .` passes (B0 gate)
 - [x] `/review` on the v0.2.4 diff: 2 concerns + 1 nit fixed in-session, 1 nit rejected with evidence — no unaddressed substantial findings (`reviews/2026-05-30-v0.2.4-status-drift-closeout.md`)
-- [ ] v0.2.4 tag created
+- [x] v0.2.4 tag created (annotated tag at `f3fd436`, pushed)
+
+## Next session — PRD (2026-05-30)
+
+- **Problem**: v0.2.4 is shipped (commit `f3fd436`, tag `v0.2.4` pushed), but two dogfood signals remain NO DATA — #1 (`/loop-bootstrap` on an empty project ≤4 lines) and #3 (`/tutor` diagnose-first) — and the D4 rollout decision (Chef2 Gemini / OOTA) is unblocked but not started.
+- **Goal**: either (a) exercise signals #1/#3 — a fresh empty-project `/loop-bootstrap` (verify ≤4 lines) + one real `/tutor` run (verify diagnose-before-lecture), logging results to `reviews/_metrics.md`; or (b) begin rollout to Chef2 Gemini / OOTA.
+- **Non-goal**: building `scripts/close_finding.py` (YAGNI; revisit only if hand-reconciling reviews gets error-prone); changing the `karpathy-reviewer.md` severity rubric (D4: leave it).
+- **Decision**: rollout follows COMMIT_PLAN Phase D (D1 install + graphify baseline, D2 CLAUDE.md conflict check, D3 first review). Strict additions only — no edits to shipped v0.1/v0.2 commands.
+- **Acceptance**: `reviews/_metrics.md` updated with signal #1/#3 observations (≤4-line bootstrap captured, tutor diagnose-first confirmed) OR a first rollout review landed in the target project's `reviews/` with `/loop-bootstrap` + `/review` run clean.
+
+## Phase J — v0.3.0: review-gate hook (merge-to-master review floor)
+
+The plugin's **first hook infrastructure** (no `hooks/` directory existed before).
+A `PreToolUse` hook that surfaces when code lands on master without a fresh
+review — the *systemic* counterpart to the tactical backfill-review of the
+un-reviewed chief-of-staff money code. The backfill fixes the symptom; this hook
+fixes the cause.
+
+**Brief**
+- **Problem:** the loop is fully manual — nothing *enforces* `/review`. During
+  the 29–30 May sprint (master-collision + parallel sessions + time pressure)
+  the heaviest, money-critical chief-of-staff code (matcher-SSOT `8195529`,
+  triage-ledger `c111a9d`) reached master **unreviewed**. The loop fails exactly
+  when it is needed most.
+- **Goal:** a reusable, safe-by-default hook that surfaces/enforces that code
+  changes have a fresh review in `reviews/` before they land on master — across
+  every project that installs the loop.
+- **Non-goal:** does not replace review *quality* (presence-check, not
+  quality-check); does not catch diagnostic/operational mistakes (the 2026-05-30
+  near-misses — wrong grep map, deploy timing — were not code bugs and a code
+  gate would not catch them); does not gate per-commit; and does **not**
+  intercept a `git merge`/`git push` typed directly in an external terminal — a
+  `PreToolUse` hook only sees git commands Claude runs via the Bash tool.
+  Terminal-side coverage would need an installed git `pre-merge-commit`/`pre-push`
+  hook (deferred as future hardening, v0.3.x).
+- **Decision:**
+  1. **Gate on merge/push to master, not per-commit.** That is the convergence
+     point where parallel sessions collide — exactly where 29–30 May went wrong.
+     A per-commit hook coordinates no parallel sessions.
+  2. **Warning-first + sanctioned, logged bypass.** Never silently hard-block
+     (would get `--no-verify`'d or disabled). Bypass is allowed but
+     visible + logged (`REVIEW_GATE_BYPASS=1`, recorded to the gate log).
+  3. **Opt-in per project + configurable scope.** Plugin default = OFF (no
+     config ⇒ silent). A project declares its own must-review globs and a mode
+     in `.claude/review-gate.json`. A plugin hook that hard-blocks everywhere by
+     default would be a disaster.
+  4. **Presence-check, not quality-check.** The hook checks *that* a fresh review
+     for the diff exists in `reviews/` (by `commit_hash`), not that it is good.
+     A floor (zero→something), not a ceiling.
+- **Acceptance:** in a test project, a merge-to-master touching a must-review
+  path **without** a fresh review ⇒ warning (with logged-bypass option); paths
+  outside scope ⇒ silent; manifest bumped (0.2.4 → 0.3.0); README section + a
+  guide in `the-boris-cherny-way`; existing commands (`/review`,
+  `/loop-bootstrap`, `/diagnose-loop`, …) keep working; `claude plugin validate
+  .` passes.
+
+> **Brief correction (verified against the manifest):** the brief said "now
+> 0.2.1"; the shipped `plugin.json` is **0.2.4** (Phase I, tag `v0.2.4` pushed).
+> New capability ⇒ minor bump to **0.3.0**, not a patch off 0.2.1.
+
+### J1. New `hooks/` infrastructure
+- `hooks/hooks.json` — `PreToolUse` with `matcher: "Bash"` → a single command
+  hook: `bash "${CLAUDE_PLUGIN_ROOT}/hooks/review_gate.sh"`.
+
+### J2. `hooks/review_gate.sh` — cross-platform launcher (fail-OPEN)
+Buffers stdin and applies a cheap `case` pre-filter (`*git*merge*|*git*push*`) so
+Python only starts for real candidates — no per-Bash-call cold-start tax on the
+majority of commands. Then `cd` to its own directory (works with the backslash
+path Claude passes on Windows — empirically verified in git-bash), resolve the
+first of `python3 | python | py`, and run `review_gate.py` by **relative** name
+(CWD-resolved — sidesteps msys↔Windows path impedance). If no Python is found,
+`exit 0` — a broken gate must never block work.
+
+### J3. `hooks/review_gate.py` — gate logic (Python stdlib only, no `jq`)
+1. Read PreToolUse JSON from stdin; take `tool_input.command` and `cwd` (the
+   project dir — *not* the launcher's CWD).
+2. Best-effort detect a **master-landing git op**: `git merge <ref>` while on a
+   master branch, or `git push … <master>` (explicit refspec or bare push from a
+   master branch). Anything else ⇒ `exit 0` silently.
+3. Load `<project>/.claude/review-gate.json`. Missing / `enabled:false` / empty
+   `must_review` ⇒ `exit 0` silently (safe-by-default).
+4. Compute landing files (`git diff --name-only` over the right range) and
+   intersect with `must_review` globs. Empty intersection ⇒ `exit 0` silently
+   (← "paths outside scope ⇒ silent").
+5. Presence-check: scan `reviews/*.md` front-matter for a `commit_hash` matching
+   the landing tip (tolerant short/long SHA prefix match). Found ⇒ `exit 0`
+   silently (reviewed).
+6. Otherwise **fire**: append a JSONL line to the gate log (always), then emit by
+   mode — `warn` (systemMessage + exit 0, proceeds), `ask`
+   (`permissionDecision: ask` — the visible, logged bypass point), or `block`
+   (`permissionDecision: deny` + remediation + `REVIEW_GATE_BYPASS=1` escape).
+   `REVIEW_GATE_BYPASS=1` short-circuits to allow in any mode, logged as a bypass.
+   Any internal error ⇒ fail-OPEN.
+
+### J4. Config schema + example
+- `.claude/review-gate.json`: `{ enabled, mode, must_review[], master_branches[],
+  reviews_dir, log_path }`. Defaults: `mode:"warn"`, `master_branches:["master",
+  "main"]`, `reviews_dir:"reviews"`, `log_path:".claude/review-gate-log.jsonl"`.
+- Ship a documented example (`hooks/review-gate.example.json`) using the
+  chief-of-staff money paths with `mode:"ask"` (recommended for money-critical
+  scope; the plugin *default* stays `warn` for least-surprise on first opt-in).
+
+### J5. Tests — isolated, repeatable acceptance harness
+- `tests/test_review_gate.py` (stdlib `unittest`, no deps): spins up a temp git
+  repo (+ a bare origin for the push case) and drives `review_gate.py` as a
+  subprocess. Asserts: (a) in-scope merge, no review ⇒ fires + log line;
+  (b) out-of-scope path ⇒ silent; (c) in-scope **with** matching-`commit_hash`
+  review ⇒ silent; (d) no config ⇒ silent; (e) `REVIEW_GATE_BYPASS=1` ⇒ allowed
+  + logged bypass.
+
+### J6. Validate + bump
+- `claude plugin validate .` (B0 gate) — also confirms the new `hooks` wiring.
+- `.claude-plugin/plugin.json` 0.2.4 → 0.3.0; add the `hooks` reference if the
+  schema wants it (auto-discovery otherwise).
+
+### J7. Docs
+- `README.md`: a "Review gate" section — what it does, how to opt in, the config
+  schema, the bypass, and the terminal-merge limitation.
+- `the-boris-cherny-way/guides/review-gate.md`: the why (29–30 May post-mortem),
+  the floor-not-ceiling framing, and the recommended money-path config.
+
+### J8. Review + tag
+- `/boris-karpathy-loop:review` on the v0.3.0 diff; address substantial findings.
+- `git tag -a v0.3.0`.
+
+## Definition of done for v0.3.0
+- [x] `hooks/hooks.json` registers a `PreToolUse`/`Bash` command hook
+- [x] `hooks/review_gate.sh` launcher: stdin pre-filter (no Python tax on non-merge/push Bash) + fail-open, cross-platform (verified on Win git-bash — fires `ask` + logs; skips `ls`/`git status`)
+- [x] `hooks/review_gate.py`: detection + opt-in config + scope intersection + presence-check + warn/ask/block + logged bypass, fail-open on error
+- [x] `.claude/review-gate.json` schema documented + `hooks/review-gate.example.json` shipped
+- [x] `tests/test_review_gate.py` passes — 11 cases green (5 acceptance + 6 edge)
+- [x] Out-of-scope paths verified silent; in-scope-no-review verified fires; bypass verified logged
+- [x] `.claude-plugin/plugin.json` bumped to `0.3.0` (+ `hooks` key)
+- [x] `claude plugin validate .` passes (B0 gate)
+- [x] Existing commands unaffected (no edits to shipped command/agent/skill files)
+- [x] README "Review gate" section + `the-boris-cherny-way/guides/review-gate.md` written
+- [x] ruff check + ruff format + ty all clean on `hooks/` + `tests/`
+- [x] `/review` on the v0.3.0 diff has no unaddressed substantial findings (`reviews/2026-06-01-v0.3.0-review-gate.md` — 0 blockers; 2 concerns + 2 nits all fixed in-session with regression tests; review `resolved`)
+- [ ] v0.3.0 tag created (awaiting user go-ahead — never auto-commit/tag)

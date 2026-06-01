@@ -1,0 +1,17 @@
+{
+  "description": "review-gate: surface when a merge/push to master lands must-review code without a fresh review. Opt-in per project via .claude/review-gate.json; no config = silent.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/review_gate.sh\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}

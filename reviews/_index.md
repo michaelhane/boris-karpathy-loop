@@ -5,3 +5,4 @@
 - 2026-05-30 `v0.2.2-uv-tool-install-fix` — 0 blockers, 0 concerns, 2 nits — **closed 2026-05-30** (both nits left as-is, defensible) ([link](./2026-05-30-v0.2.2-uv-tool-install-fix.md))
 - 2026-05-30 `v0.2.3-hook-fix` — 0 blockers, 1 concern, 3 nits — **resolved 2026-05-30** (acceptance test ran on commit `c40ea11`: hook fired clean, rebuild completed, stamp == HEAD) ([link](./2026-05-30-v0.2.3-hook-fix.md))
 - 2026-05-30 `v0.2.4-status-drift-closeout` — 0 blockers, 2 concerns, 2 nits — **closed 2026-05-30** (3 fixed in-session; 1 nit rejected with evidence — C3 quote is verbatim at `setup-graphify.md:82`) ([link](./2026-05-30-v0.2.4-status-drift-closeout.md))
+- 2026-06-01 `v0.3.0-review-gate` — 0 blockers, 2 concerns, 2 nits — **resolved 2026-06-01** (all 4 fixed in-session: robust merge-ref resolution, remote-aware push base, dotfile-match fix, +4 regression tests → 15 green) ([link](./2026-06-01-v0.3.0-review-gate.md))

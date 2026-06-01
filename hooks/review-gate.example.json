@@ -1,0 +1,19 @@
+{
+  "_comment": "Copy this to <your-project>/.claude/review-gate.json and edit. The plugin ships with the gate OFF: with no such file, the review-gate hook does nothing. See the README 'Review gate' section for the full schema.",
+
+  "enabled": true,
+
+  "_comment_mode": "warn = surface a message and proceed (default, least-surprise). ask = require a confirmation before the merge/push runs (recommended for money-critical scope). block = deny until a fresh review exists or REVIEW_GATE_BYPASS=1 is set. Every fire and every bypass is written to log_path.",
+  "mode": "ask",
+
+  "_comment_must_review": "Repo-root-relative globs. The gate only acts when a merge/push to master changes one of these. Empty list = silent. Example below is the chief-of-staff money code that reached master unreviewed on 29-30 May.",
+  "must_review": [
+    "scripts/sync_onbetaalde_facturen.py",
+    "src/triage_ledger.py",
+    "src/matching/**"
+  ],
+
+  "master_branches": ["master", "main"],
+  "reviews_dir": "reviews",
+  "log_path": ".claude/review-gate-log.jsonl"
+}
