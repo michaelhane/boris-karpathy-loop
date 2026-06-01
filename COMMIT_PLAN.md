@@ -722,4 +722,92 @@ first of `python3 | python | py`, and run `review_gate.py` by **relative** name
 - [x] README "Review gate" section + `the-boris-cherny-way/guides/review-gate.md` written
 - [x] ruff check + ruff format + ty all clean on `hooks/` + `tests/`
 - [x] `/review` on the v0.3.0 diff has no unaddressed substantial findings (`reviews/2026-06-01-v0.3.0-review-gate.md` — 0 blockers; 2 concerns + 2 nits all fixed in-session with regression tests; review `resolved`)
-- [ ] v0.3.0 tag created (awaiting user go-ahead — never auto-commit/tag)
+- [x] v0.3.0 tag created — local annotated tag `v0.3.0` at `c32f8f7` (push held pending real-session smoke test)
+
+## Phase K — v0.3.1: review-gate Stop nudge (the orphan-review trigger)
+
+Extends the v0.3.0 review-gate with a second, configurable trigger. Review is the
+only step in brainstorm→plan→build→review with no automatic trigger: brainstorm/
+plan/build happen in-session, but review hangs on a manual `/review` — even
+`/wrap-session` has no review step. A `Stop` hook surfaces "you changed code
+without a fresh review" while you can still act, closing that orphan gap.
+
+**Brief**
+- **Problem:** the review step is an orphan — nothing triggers it. The v0.3.0 gate
+  only fires at merge/push, so committed-but-unreviewed code sits unflagged until
+  (maybe) a merge much later — exactly the 29–30 May setup.
+- **Goal:** a configurable Stop-hook nudge that surfaces, at turn-end, when HEAD
+  carries must-review changes with no fresh review — soft, debounced, opt-in.
+- **Non-goal:** does not block (soft `systemMessage` only); not `SessionEnd`
+  (verified against the hooks docs: SessionEnd output is *ignored* — it can only
+  log, never surface); not per-commit-on-master (consistent with the merge gate);
+  does not replace the merge gate.
+- **Decision:**
+  1. **Stop, not SessionEnd.** SessionEnd cannot block or surface anything; Stop
+     fires at every turn-end and *can* show a `systemMessage`. Stop is the only
+     event that can nudge.
+  2. **Signal = committed-but-unreviewed.** HEAD's branch-vs-master diff touches a
+     `must_review` path AND no review's `commit_hash` matches HEAD. Reuses the
+     merge gate's presence-check; ignores mid-edit dirt.
+  3. **Debounced, soft, opt-in.** once-per-HEAD via
+     `.claude/review-gate-state.json`; `systemMessage` only (never block); new
+     config trigger `stop_nudge` (default OFF). `REVIEW_GATE_BYPASS=1` silences it.
+  4. **No per-turn Python tax.** The launcher's `--stop` path exits in bash (file
+     check → `grep` → one `git rev-parse`) and only spawns Python when HEAD is new.
+- **Acceptance:** in a test project with `triggers.stop_nudge=true`, committing a
+  `must_review` path on a feature branch without a review → next Stop emits a
+  `systemMessage` nudge + writes state; running `/review` (stamps HEAD) → silent;
+  out-of-scope commit → silent; `stop_nudge` absent/false → silent; second Stop on
+  the same HEAD → silent (debounced). The `merge_push` trigger is unchanged when
+  `triggers` is absent. manifest 0.3.0 → 0.3.1; README + guide updated; existing
+  commands + the v0.3.0 merge gate keep working; `claude plugin validate .` passes.
+
+### K1. Config — additive `triggers`
+`.claude/review-gate.json` gains `"triggers": { "merge_push": true, "stop_nudge":
+false }`. Absent ⇒ `merge_push` true, `stop_nudge` false (every v0.3.0 project
+unchanged). `evaluate()` reads `triggers.merge_push` (default true);
+`evaluate_stop()` requires `triggers.stop_nudge`.
+
+### K2. `hooks/hooks.json` — add the Stop hook
+A `Stop` entry → `bash "${CLAUDE_PLUGIN_ROOT}/hooks/review_gate.sh" --stop`.
+
+### K3. `hooks/review_gate.sh` — `--stop` branch (cheap, fail-open)
+If `--stop`: locate config via `$CLAUDE_PROJECT_DIR`; exit 0 if no config or no
+`"stop_nudge": true` (grep). Else `git rev-parse HEAD`; if == `last_evaluated_head`
+in `.claude/review-gate-state.json` → exit 0. Else buffer stdin and run
+`python review_gate.py --stop`. The no-arg path (merge gate) is unchanged.
+
+### K4. `hooks/review_gate.py` — `--stop` mode
+`evaluate_stop(payload)`: resolve project; load config; require
+`triggers.stop_nudge`; base = `merge-base(HEAD, <master>)` (fallback
+`origin/<master>`); files = `diff base..HEAD`; intersect `must_review`; debounce on
+`last_evaluated_head`; if hits AND no fresh review for HEAD AND not
+`REVIEW_GATE_BYPASS` → soft `systemMessage`. Reuses `git`/`load_config`/
+`must_review_hits`/`fresh_review_exists`. A simple `--stop` argv check selects
+mode; the PreToolUse path is the default.
+
+### K5. Tests + example + docs
+- tests: nudge fires (committed `must_review` on a branch, no review); silent when
+  HEAD reviewed; silent out-of-scope; silent when `stop_nudge` false; debounce
+  (second eval same HEAD → state set, no nudge); merge-gate cases still green.
+- `hooks/review-gate.example.json`: add the `triggers` block.
+- README "Review gate" + the guide: document the Stop trigger, `triggers`, the
+  state file, and `.gitignore` of state + log.
+
+### K6. Validate + bump + review + tag
+- `claude plugin validate .`; `plugin.json` 0.3.0 → 0.3.1.
+- `/review` on the diff; reconcile; tag `v0.3.1` (local; push on user go-ahead).
+
+## Definition of done for v0.3.1
+- [x] `triggers` block (merge_push default true, stop_nudge default false), backward-compatible
+- [x] `hooks/hooks.json` registers the `Stop` hook (`--stop`)
+- [x] `review_gate.sh --stop`: config-grep + HEAD-debounce in bash; Python only on new HEAD; fail-open (Windows e2e: nudge fires, debounces, fast-silent when off)
+- [x] `review_gate.py --stop`: committed-but-unreviewed detection, state I/O, soft `systemMessage`, bypass-aware
+- [x] merge/push gate reads `triggers.merge_push`; unchanged when `triggers` absent (test_merge_gate_off_when_trigger_disabled + backward-compat verified)
+- [x] tests cover fires / reviewed-silent / out-of-scope / not-enabled / debounce + fallback-base regression; full suite 22 green
+- [x] ruff + ty clean
+- [x] `.claude-plugin/plugin.json` 0.3.1; `claude plugin validate .` passes
+- [x] README + guide updated (triggers, state file, gitignore)
+- [x] existing commands + the v0.3.0 merge gate unaffected
+- [x] `/review` on the v0.3.1 diff has no unaddressed substantial findings (`reviews/2026-06-01-v0.3.1-stop-nudge.md` — 0 blockers; 1 concern + 3 nits all fixed in-session; review `resolved`)
+- [ ] v0.3.1 tag created (awaiting user go-ahead — following the v0.3.0 "commit + tag local" choice)

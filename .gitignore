@@ -32,3 +32,7 @@ Thumbs.db
 # Local staging from v0.1.0 unpack — not part of the plugin
 bo-karpa-Loop_files/
 bo-karpa-Loop_files.zip
+
+# review-gate runtime state/log (local; created only if this repo opts into the gate)
+.claude/review-gate-log.jsonl
+.claude/review-gate-state.json

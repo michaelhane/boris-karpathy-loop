@@ -118,11 +118,19 @@ python scripts/extract_patterns.py \
 
 The loop is only as strong as the discipline to run `/review` before code lands
 on master — and that discipline fails exactly under pressure (parallel sessions,
-a deadline, a master collision). The **review gate** makes it visible. It is a
-`PreToolUse` hook: when a `git merge` or `git push` is about to land changes to a
-path you declared *must-review* on a master branch, **and there is no fresh
-review for that diff in `reviews/`**, the gate surfaces a warning (or asks, or
-blocks — your call).
+a deadline, a master collision). The **review gate** makes it visible, via two
+configurable triggers:
+
+- **`merge_push`** (default on) — a `PreToolUse` hook: when a `git merge`/`git
+  push` is about to land changes to a *must-review* path on a master branch with
+  **no fresh review for that diff in `reviews/`**, it surfaces a warning (or asks,
+  or blocks — your call).
+- **`stop_nudge`** (default off) — a `Stop` hook: at the end of a turn, if HEAD
+  carries *committed-but-unreviewed* must-review changes, it drops a soft,
+  one-line reminder (never blocks). This plugs the gap that review is the only
+  step in brainstorm→plan→build→review with no automatic trigger — even
+  `/wrap-session` has none. Debounced once per commit; clears the moment a review
+  stamps HEAD.
 
 It is a **floor, not a ceiling.** It checks *that* a review exists for the diff
 (by matching the review's `commit_hash`), not that the review is any good.
@@ -135,6 +143,7 @@ nothing until a project drops a `.claude/review-gate.json` (copy
 {
   "enabled": true,
   "mode": "ask",
+  "triggers": { "merge_push": true, "stop_nudge": true },
   "must_review": [
     "scripts/sync_onbetaalde_facturen.py",
     "src/triage_ledger.py",
@@ -149,7 +158,8 @@ nothing until a project drops a `.claude/review-gate.json` (copy
 | Field | Default | Meaning |
 |---|---|---|
 | `enabled` | `false` | Master switch. Absent file or `false` ⇒ the gate is silent. |
-| `mode` | `"warn"` | `warn` surfaces and proceeds; `ask` requires confirmation; `block` denies. Use `ask`/`block` for money-critical scope. |
+| `mode` | `"warn"` | `warn` surfaces and proceeds; `ask` requires confirmation; `block` denies. Use `ask`/`block` for money-critical scope. (Applies to `merge_push` only — the nudge is always soft.) |
+| `triggers` | `{merge_push:true, stop_nudge:false}` | Which events arm the gate. `merge_push` = the merge/push gate; `stop_nudge` = the turn-end reminder. Absent ⇒ merge_push on, stop_nudge off. |
 | `must_review` | `[]` | Repo-root-relative globs. Empty ⇒ silent. The gate acts only on these. |
 | `master_branches` | `["master","main"]` | Branches treated as "master". |
 | `reviews_dir` | `"reviews"` | Where the loop's review files live. |
@@ -168,9 +178,11 @@ terminal is invisible to it (that would need an installed git
 `the-boris-cherny-way`). On any internal error or undeterminable diff it
 **fails open** — a broken gate must never block your work.
 
-> The hook loads when the plugin is enabled at session start; the
+> The hooks load when the plugin is enabled at session start; the
 > `.claude/review-gate.json` config is read fresh on every invocation, so edits
-> to scope or mode take effect immediately — no restart needed.
+> to scope, mode, or triggers take effect immediately — no restart needed.
+> Add `.claude/review-gate-log.jsonl` and `.claude/review-gate-state.json` (the
+> nudge's per-commit debounce state) to your `.gitignore`.
 
 ## Why three layers + a tutor
 

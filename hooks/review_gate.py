@@ -51,6 +51,7 @@ _GIT_OPTS_WITH_ARG = {
 DEFAULT_MASTER_BRANCHES = ["master", "main"]
 DEFAULT_REVIEWS_DIR = "reviews"
 DEFAULT_LOG_PATH = ".claude/review-gate-log.jsonl"
+DEFAULT_STATE_PATH = ".claude/review-gate-state.json"
 DEFAULT_MODE = "warn"
 _SHA_RE = re.compile(r"[0-9a-f]{7,40}", re.IGNORECASE)
 
@@ -146,6 +147,58 @@ def load_config(project_dir: str) -> dict | None:
     except Exception:
         return None
     return data if isinstance(data, dict) else None
+
+
+def _resolve_project_dir(payload: dict) -> str | None:
+    """First of cwd / $CLAUDE_PROJECT_DIR / getcwd that git can actually read.
+
+    (A cwd may arrive in a form ``git -C`` cannot open; fall through gracefully.)
+    """
+    for candidate in (
+        payload.get("cwd"),
+        os.environ.get("CLAUDE_PROJECT_DIR"),
+        os.getcwd(),
+    ):
+        if candidate and is_git_repo(candidate):
+            return candidate
+    return None
+
+
+def _bypassed() -> bool:
+    return os.environ.get("REVIEW_GATE_BYPASS", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+
+
+def _trigger_enabled(config: dict, name: str, default: bool) -> bool:
+    """Read config['triggers'][name], defaulting when the block/key is absent."""
+    triggers = config.get("triggers")
+    if not isinstance(triggers, dict):
+        return default
+    return bool(triggers.get(name, default))
+
+
+def _read_state(project_dir: str) -> dict:
+    try:
+        with open(
+            os.path.join(project_dir, DEFAULT_STATE_PATH), encoding="utf-8"
+        ) as handle:
+            data = json.load(handle)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _write_state(project_dir: str, state: dict) -> None:
+    try:
+        path = os.path.join(project_dir, DEFAULT_STATE_PATH)
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(state, handle)
+    except Exception:
+        pass
 
 
 # --------------------------------------------------------------------------- #
@@ -376,23 +429,15 @@ def evaluate(payload: dict) -> dict | None:
     if "push" not in command and "merge" not in command:
         return None  # hot-path: not a candidate op, skip all git work
 
-    # Resolve the project repo from the first candidate git can actually read.
-    # (cwd may arrive in a form `git -C` cannot open; fall through gracefully.)
-    project_dir = None
-    for candidate in (
-        payload.get("cwd"),
-        os.environ.get("CLAUDE_PROJECT_DIR"),
-        os.getcwd(),
-    ):
-        if candidate and is_git_repo(candidate):
-            project_dir = candidate
-            break
+    project_dir = _resolve_project_dir(payload)
     if project_dir is None:
         return None
 
     config = load_config(project_dir)
     if config is None or not config.get("enabled", False):
         return None  # opt-in: no config / disabled -> silent
+    if not _trigger_enabled(config, "merge_push", default=True):
+        return None  # merge/push trigger turned off for this project
     patterns = config.get("must_review") or []
     if not patterns:
         return None  # nothing declared in scope -> silent
@@ -430,11 +475,7 @@ def evaluate(payload: dict) -> dict | None:
         return None  # presence satisfied -> silent
 
     # ---- the gate fires ----------------------------------------------------- #
-    bypassed = os.environ.get("REVIEW_GATE_BYPASS", "").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-    }
+    bypassed = _bypassed()
     base_record = {
         "event": "review-gate",
         "op": op["kind"],
@@ -469,7 +510,111 @@ def evaluate(payload: dict) -> dict | None:
     return {"decision": decision, "message": build_message(op, hits, tip_sha, mode)}
 
 
+def _stop_diff_files(
+    project_dir: str, master_branches: list[str], head: str
+) -> list[str] | None:
+    """Files in HEAD's commits vs the master line (merge-base diff).
+
+    Falls back to unpushed commits (``origin/<master>``) when on master itself.
+    Returns [] when nothing is ahead of master, or None if the diff failed.
+    """
+    base = None
+    for mb in master_branches:
+        cand = git(project_dir, "merge-base", "HEAD", mb)
+        if cand and cand != head:
+            base = cand
+            break
+    if base is None:
+        for mb in master_branches:
+            ref = f"origin/{mb}"
+            if git(project_dir, "rev-parse", "--verify", ref) is None:
+                continue
+            cand = git(project_dir, "merge-base", "HEAD", ref)
+            if cand and cand != head:
+                base = cand
+                break  # stop at the first *usable* base, not the first that exists
+    if base is None:
+        return []  # on master with nothing ahead, or no master line -> nothing to nudge
+    diff = git(project_dir, "diff", "--name-only", f"{base}..HEAD")
+    if diff is None:
+        return None
+    return [line.strip() for line in diff.splitlines() if line.strip()]
+
+
+def evaluate_stop(payload: dict) -> dict | None:
+    """Stop-hook nudge. Returns a soft ``{"decision": None, "message": ...}`` when
+    HEAD carries committed-but-unreviewed must-review changes, else None (silent /
+    fail open). Debounced once per HEAD via ``.claude/review-gate-state.json``."""
+    project_dir = _resolve_project_dir(payload)
+    if project_dir is None:
+        return None
+
+    config = load_config(project_dir)
+    if config is None or not config.get("enabled", False):
+        return None
+    if not _trigger_enabled(config, "stop_nudge", default=False):
+        return None  # opt-in: the Stop nudge is off by default
+    patterns = config.get("must_review") or []
+    if not patterns:
+        return None
+
+    head = git(project_dir, "rev-parse", "--verify", "HEAD")
+    if head is None:
+        return None
+
+    # Debounce: evaluate each HEAD at most once (backs up the launcher's check).
+    # Record the HEAD *before* deciding to nudge, on purpose: even a head that
+    # turns out out-of-scope or unreviewable must not be re-evaluated every turn.
+    # Trade-off: a transient git failure on this head won't be retried — acceptable
+    # for a soft nudge (the merge gate is the hard backstop).
+    state = _read_state(project_dir)
+    if state.get("last_evaluated_head") == head:
+        return None
+    state["last_evaluated_head"] = head
+    _write_state(project_dir, state)
+
+    master_branches = config.get("master_branches") or DEFAULT_MASTER_BRANCHES
+    files = _stop_diff_files(project_dir, master_branches, head)
+    if not files:
+        return None  # nothing ahead of master / diff failed -> silent
+
+    hits = must_review_hits(files, patterns)
+    if not hits:
+        return None  # out of scope -> silent
+
+    reviews_dir = os.path.join(
+        project_dir, config.get("reviews_dir") or DEFAULT_REVIEWS_DIR
+    )
+    if fresh_review_exists(reviews_dir, head):
+        return None  # already reviewed -> silent
+
+    if _bypassed():
+        return None  # bypass silences the soft nudge
+
+    log_path = config.get("log_path") or DEFAULT_LOG_PATH
+    log_event(
+        project_dir,
+        log_path,
+        {
+            "event": "review-gate-nudge",
+            "op": "stop",
+            "tip": head[:8],
+            "must_review_hits": hits,
+            "fresh_review": False,
+            "decision": "nudge",
+        },
+    )
+    files_str = ", ".join(hits)
+    message = (
+        f"⚠️ review-gate: HEAD ({head[:8]}) has unreviewed changes to must-review "
+        f"path(s) [{files_str}]. Run /boris-karpathy-loop:review before you merge or "
+        f"wrap up — this clears once a review stamps this commit (shown once per commit)."
+    )
+    return {"decision": None, "message": message}
+
+
 def main() -> None:
+    stop_mode = "--stop" in sys.argv[1:]
     raw = sys.stdin.read()
     try:
         payload = json.loads(raw) if raw.strip() else {}
@@ -477,7 +622,7 @@ def main() -> None:
         return  # unparseable payload -> fail open
     if not isinstance(payload, dict):
         return
-    action = evaluate(payload)
+    action = evaluate_stop(payload) if stop_mode else evaluate(payload)
     if action is not None:
         emit(action.get("decision"), action.get("message"))
 

@@ -1,5 +1,5 @@
 {
-  "description": "review-gate: surface when a merge/push to master lands must-review code without a fresh review. Opt-in per project via .claude/review-gate.json; no config = silent.",
+  "description": "review-gate: surface when a merge/push lands must-review code on master, or when a turn ends with committed-but-unreviewed must-review code, without a fresh review. Opt-in per project via .claude/review-gate.json (triggers.merge_push / triggers.stop_nudge); no config = silent.",
   "hooks": {
     "PreToolUse": [
       {
@@ -8,6 +8,18 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/review_gate.sh\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/review_gate.sh\" --stop",
             "timeout": 15
           }
         ]

@@ -135,6 +135,24 @@ class ReviewGateTest(unittest.TestCase):
             if line.strip()
         ]
 
+    def run_stop(self, env_extra: dict | None = None) -> tuple[dict | None, int]:
+        payload = {"hook_event_name": "Stop", "cwd": self.repo}
+        env = os.environ.copy()
+        env.pop("REVIEW_GATE_BYPASS", None)
+        if env_extra:
+            env.update(env_extra)
+        result = subprocess.run(
+            [sys.executable, GATE, "--stop"],
+            input=json.dumps(payload),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            env=env,
+        )
+        out = result.stdout.strip()
+        obj = json.loads(out) if out else None
+        return obj, result.returncode
+
     # -- acceptance cases ------------------------------------------------- #
     def test_merge_in_scope_no_review_fires_ask(self) -> None:
         """ACCEPTANCE: merge-to-master of a must-review path without a fresh
@@ -299,6 +317,85 @@ class ReviewGateTest(unittest.TestCase):
         write(self.repo, "reviews/messy.md", front)
         obj, _ = self.run_gate("git merge feature/ledger")
         self.assertIsNone(obj, "messy commit_hash should still match the tip")
+
+    # -- v0.3.1 stop-nudge cases ----------------------------------------- #
+    def test_stop_nudge_fires_on_committed_unreviewed(self) -> None:
+        """ACCEPTANCE: committed must-review change on a branch, no review -> a soft
+        (non-blocking) systemMessage nudge."""
+        self.make_feature("feature/ledger", {IN_SCOPE: "v1 money\n"})
+        git(self.repo, "checkout", "-q", "feature/ledger")
+        self.write_config(triggers={"stop_nudge": True})
+        obj, code = self.run_stop()
+        self.assertEqual(code, 0)
+        self.assertIsNotNone(obj, "stop nudge should fire")
+        assert obj is not None
+        self.assertIn("systemMessage", obj)
+        self.assertNotIn("hookSpecificOutput", obj)  # soft -> never blocks
+        self.assertIn(IN_SCOPE, obj["systemMessage"])
+        self.assertEqual(self.log_lines()[0]["op"], "stop")
+
+    def test_stop_nudge_silent_when_reviewed(self) -> None:
+        tip = self.make_feature("feature/ledger", {IN_SCOPE: "v1\n"})
+        git(self.repo, "checkout", "-q", "feature/ledger")
+        self.write_config(triggers={"stop_nudge": True})
+        self.write_review(tip)
+        obj, _ = self.run_stop()
+        self.assertIsNone(obj, "a review stamping HEAD must silence the nudge")
+
+    def test_stop_nudge_silent_out_of_scope(self) -> None:
+        self.make_feature("feature/docs", {OUT_OF_SCOPE: "notes\n"})
+        git(self.repo, "checkout", "-q", "feature/docs")
+        self.write_config(triggers={"stop_nudge": True})
+        obj, _ = self.run_stop()
+        self.assertIsNone(obj)
+
+    def test_stop_nudge_silent_when_trigger_off(self) -> None:
+        """Opt-in: stop_nudge defaults False when triggers is absent."""
+        self.make_feature("feature/ledger", {IN_SCOPE: "v1\n"})
+        git(self.repo, "checkout", "-q", "feature/ledger")
+        self.write_config()
+        obj, _ = self.run_stop()
+        self.assertIsNone(obj)
+
+    def test_stop_nudge_debounced_per_head(self) -> None:
+        self.make_feature("feature/ledger", {IN_SCOPE: "v1\n"})
+        git(self.repo, "checkout", "-q", "feature/ledger")
+        self.write_config(triggers={"stop_nudge": True})
+        first, _ = self.run_stop()
+        self.assertIsNotNone(first, "first stop should nudge")
+        second, _ = self.run_stop()
+        self.assertIsNone(second, "second stop on the same HEAD should be debounced")
+
+    def test_merge_gate_off_when_trigger_disabled(self) -> None:
+        """triggers.merge_push=false disables the merge gate (backward-compat: absent=on)."""
+        self.make_feature("feature/ledger", {IN_SCOPE: "v1\n"})
+        self.write_config(mode="ask", triggers={"merge_push": False})
+        obj, _ = self.run_gate("git merge feature/ledger")
+        self.assertIsNone(obj, "merge gate should be off when merge_push=false")
+
+    def test_stop_nudge_fallback_uses_usable_remote_base(self) -> None:
+        """CONCERN regression: on master, a stale origin/master at HEAD must not
+        shadow a usable origin/main in the fallback base resolution."""
+        bare = tempfile.mkdtemp(prefix="review-gate-fb-")
+        self.addCleanup(lambda: __import__("shutil").rmtree(bare, onerror=_force_rm))
+        git(bare, "init", "--bare")
+        git(self.repo, "remote", "add", "origin", bare.replace("\\", "/"))
+        base_sha = git(self.repo, "rev-parse", "HEAD")  # the init commit
+        # origin/main lags at the init commit (a usable base); no local main exists.
+        git(self.repo, "push", "-q", "origin", f"{base_sha}:refs/heads/main")
+        # New in-scope commit on master, then origin/master pushed to HEAD so its
+        # merge-base with HEAD == HEAD (stale-at-head -> must be skipped, not break).
+        write(self.repo, IN_SCOPE, "v1 money\n")
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-m", "ledger on master")
+        git(self.repo, "push", "-q", "origin", "master")
+        self.write_config(triggers={"stop_nudge": True})
+        obj, _ = self.run_stop()
+        self.assertIsNotNone(
+            obj, "fallback must use origin/main when origin/master is stale-at-head"
+        )
+        assert obj is not None
+        self.assertIn(IN_SCOPE, obj["systemMessage"])
 
 
 if __name__ == "__main__":

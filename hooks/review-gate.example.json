@@ -3,8 +3,11 @@
 
   "enabled": true,
 
-  "_comment_mode": "warn = surface a message and proceed (default, least-surprise). ask = require a confirmation before the merge/push runs (recommended for money-critical scope). block = deny until a fresh review exists or REVIEW_GATE_BYPASS=1 is set. Every fire and every bypass is written to log_path.",
+  "_comment_mode": "warn = surface a message and proceed (default, least-surprise). ask = require a confirmation before the merge/push runs (recommended for money-critical scope). block = deny until a fresh review exists or REVIEW_GATE_BYPASS=1 is set. Every fire and every bypass is written to log_path. (mode applies to the merge/push gate only — the stop_nudge is always a soft surface.)",
   "mode": "ask",
+
+  "_comment_triggers": "Which events arm the gate. merge_push (default true) = the PreToolUse gate on a git merge/push to master. stop_nudge (default false) = a soft, debounced reminder at turn-end when HEAD carries committed-but-unreviewed must_review code. Both share the must_review scope. Add .claude/review-gate-state.json and the log to .gitignore.",
+  "triggers": { "merge_push": true, "stop_nudge": true },
 
   "_comment_must_review": "Repo-root-relative globs. The gate only acts when a merge/push to master changes one of these. Empty list = silent. Example below is the chief-of-staff money code that reached master unreviewed on 29-30 May.",
   "must_review": [
