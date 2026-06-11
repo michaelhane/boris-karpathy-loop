@@ -97,3 +97,24 @@ The decision above was executed as **v0.2.4** (COMMIT_PLAN Phase I):
   (front-matter is source of truth; flag stale-open) + a documented three-layer
   lifecycle. No script built (YAGNI; revisit-trigger recorded).
 - Threshold decision held: **no** change to `karpathy-reviewer.md` severity rubric.
+
+## Update (2026-06-11) — dogfood window 2: the two NO-DATA signals
+
+Method (per PRD 2026-06-11 in COMMIT_PLAN): signal #1 was measured in a
+**fresh headless session** (`claude -p "/loop-bootstrap"`) with cwd set to a
+throwaway empty dir (`mktemp -d` — no `reviews/`, no `graphify-out/`, no git).
+Running it from this repo would not be representative: loop-bootstrap reads cwd.
+
+- **Signal #1 — /loop-bootstrap on empty project (≤4 lines): ✅ PASS.**
+  Output took the "When nothing exists" path: 3 non-empty lines (5 raw lines
+  incl. blanks), within the ≤4 band. Content was correct: absence of
+  `reviews/` + `graphify-out/` stated, seeding suggested (`/review` after
+  meaningful changes, `graphify .` once), then handed control back ("Ready
+  for today's task"). Measured 2026-06-11 on plugin v0.3.1.
+- **Signal #3 — /tutor diagnose-first: ⚠️ still NO DATA.** Per the PRD
+  decision this piggybacks on the first *genuine* leervraag — not a forced
+  artificial one. None occurred yet; log the observation line here the moment
+  it happens.
+
+Scorecard after this window: #1 ✅ · #2 ✅ · #4 ✅ · #5 ✅ (closed by v0.2.4) ·
+#3 ⚠️ pending a real tutoring occasion.
