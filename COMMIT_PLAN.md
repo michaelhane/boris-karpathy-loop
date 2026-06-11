@@ -811,3 +811,11 @@ mode; the PreToolUse path is the default.
 - [x] existing commands + the v0.3.0 merge gate unaffected
 - [x] `/review` on the v0.3.1 diff has no unaddressed substantial findings (`reviews/2026-06-01-v0.3.1-stop-nudge.md` — 0 blockers; 1 concern + 3 nits all fixed in-session; review `resolved`)
 - [ ] v0.3.1 tag created (awaiting user go-ahead — following the v0.3.0 "commit + tag local" choice)
+
+## Next session — PRD (2026-06-10): prove the gate fires + first opt-in
+
+- **Problem**: the review-gate is built, committed/tagged, **installed (v0.3.1, user-scope cache)** and **verified loaded** in a fresh session — but it has **never been proven to actually FIRE** live, and **no project has opted in**, so "self-enforcing" is still effectively dark. (`/hooks`+`/plugin` are unavailable in this environment; "loaded" was confirmed via `claude plugin details`.)
+- **Goal**: (a) prove the gate **fires** end-to-end in a fresh session, and (b) opt-in the first real project (chief-of-staff money paths) so it enforces for the first time.
+- **Non-goal**: the v0.3.x git `pre-merge-commit`/`pre-push` variant (terminal-typed merges); pushing to GitHub (the local **Directory** marketplace means local install needs no push — push only for distribution); re-reviewing already-shipped gate code.
+- **Decision**: verify via `claude plugin details boris-karpathy-loop@boris-karpathy-loop` (not `/hooks`). Fire-test = drop `.claude/review-gate.json` (`enabled:true, mode:"ask", must_review:[X], triggers:{stop_nudge:true}`) → change `X` on a branch → `git merge` to master → expect `⚠️ review-gate … NO fresh review` + a `.claude/review-gate-log.jsonl` line; negative control: out-of-scope path → silent. First opt-in target = chief-of-staff (`src/triage_ledger.py` + matching paths).
+- **Acceptance**: a fresh session shows the gate **firing** on an in-scope merge (message + log line) and **silent** out-of-scope; chief-of-staff has a committed `.claude/review-gate.json`. (Optional: confirm `claude plugin details`'s "Agents (0)" is a harmless quirk by launching `/review`.)
