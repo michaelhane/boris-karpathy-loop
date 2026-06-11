@@ -828,3 +828,11 @@ mode; the PreToolUse path is the default.
 - **First opt-in:** chief-of-staff `f28c79f` on master — `mode: "ask"`, `stop_nudge: true`, `must_review` = `scripts/sync_onbetaalde_facturen.py` + `scripts/check_already_filed.py` + `src/triage_ledger.py`. NB: `src/matching/**` from the example config does **not** exist in chief-of-staff; the real 29–30 May incident files are `check_already_filed.py` + `triage_ledger.py` (verified via `git show --stat 8195529 c111a9d`). Log/state gitignored there.
 - **Cleanup:** test merges reset away (`main` → `b600d79`), probe branches deleted, test config + debounce state removed; the gate log is retained locally as audit trail (gitignored).
 - **Still open (v0.3.x backlog):** chef + project-2026 opt-ins; GitHub push when distribution is wanted; git `pre-merge-commit`/`pre-push` variant for terminal-typed merges. ("Agents (0)" quirk-check: **DONE 2026-06-11** — `/review` launched the karpathy-reviewer fine, 0/0/0 review of this very commit at `reviews/2026-06-11-dod-close-prd-fire-test.md`; the `claude plugin details` display is a harmless quirk.)
+
+## Next session — PRD (2026-06-11): dogfood-signalen #1 & #3
+
+- **Problem**: dogfood signals #1 (`/loop-bootstrap` on an empty project stays ≤4 lines) and #3 (`/tutor` diagnoses before lecturing) have been NO DATA since 2026-05-30 — two of five loop-quality signals are unmeasured while the plugin is now live-enforcing (chief-of-staff opt-in `f28c79f`).
+- **Goal**: both signals measured and logged in `reviews/_metrics.md`: one fresh empty-project `/loop-bootstrap` run (count output lines, expect ≤4) + one real `/tutor` run (verify diagnose-before-lecture).
+- **Non-goal**: chef + project-2026 gate-opt-ins (backlog — must_review scope per repo nog uit te zoeken; in chef matcht alleen `temp/chef2_ml_feedback.js` op "feedback"); building `/gate-optin` / `/gate-fire-drill` commands (analyze-session 2026-06-11 suggestion — signals first); the git pre-push hook variant.
+- **Decision**: signal #1 runs in a throwaway empty dir with its own fresh session (loop-bootstrap reads cwd — running it from this repo is not representative); signal #3 piggybacks on the first genuine leervraag, not a forced artificial one.
+- **Acceptance**: `reviews/_metrics.md` has two new observation lines (#1 with line count, #3 with diagnose-first yes/no), committed.

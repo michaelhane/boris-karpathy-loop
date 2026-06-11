@@ -1,4 +1,14 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(python tests/test_review_gate.py)",
+      "Bash(claude plugin details *)",
+      "Bash(claude plugin validate *)",
+      "Bash(graphify update .)",
+      "mcp__visualize__read_me",
+      "mcp__visualize__show_widget"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {
