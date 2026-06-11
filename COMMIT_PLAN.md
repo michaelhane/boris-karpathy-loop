@@ -836,3 +836,16 @@ mode; the PreToolUse path is the default.
 - **Non-goal**: chef + project-2026 gate-opt-ins (backlog — must_review scope per repo nog uit te zoeken; in chef matcht alleen `temp/chef2_ml_feedback.js` op "feedback"); building `/gate-optin` / `/gate-fire-drill` commands (analyze-session 2026-06-11 suggestion — signals first); the git pre-push hook variant.
 - **Decision**: signal #1 runs in a throwaway empty dir with its own fresh session (loop-bootstrap reads cwd — running it from this repo is not representative); signal #3 piggybacks on the first genuine leervraag, not a forced artificial one.
 - **Acceptance**: `reviews/_metrics.md` has two new observation lines (#1 with line count, #3 with diagnose-first yes/no), committed.
+
+### Status (2026-06-11 wrap): #1 DONE, #3 pending
+
+- **#1 measured PASS** — fresh headless session (`claude -p "/loop-bootstrap"`) in a throwaway empty dir: 3 non-empty lines (within the ≤4 band), logged in `reviews/_metrics.md`, commit `8f7fa16` (pushed).
+- **#3 still pending** — event-driven per the Decision above; logs into `_metrics.md` at the first genuine leervraag. Does not block the next PRD.
+
+## Next session — PRD (2026-06-11 wrap): chef + project-2026 gate opt-ins
+
+- **Problem**: the review-gate is proven but live in exactly one repo (chief-of-staff `f28c79f`); chef-generator-v2gemini and project-2026 still merge unreviewed changes to master, and their `must_review` scope is unverified (in chef only `temp/chef2_ml_feedback.js` matches "feedback" by name).
+- **Goal**: both repos opted in — a committed `.claude/review-gate.json` (mode `ask`, `stop_nudge: true`) with a verified `must_review` list per repo, plus one fire-drill per repo (in-scope ask + out-of-scope silent) and cleanup.
+- **Non-goal**: the git `pre-merge-commit`/`pre-push` hook variant; GitHub-marketplace distribution switch; changes to the plugin's `hooks/` code; building a `/gate-optin` command.
+- **Decision**: derive `must_review` from real incident/money paths per repo (the chief-of-staff method: `git show --stat` on the incident commits), not from filename guesses; configs live and get committed in the target repos — only the DoD-close lands here.
+- **Acceptance**: per repo a committed config + a logged gate-fire (`ask`) on an in-scope test merge + a silent out-of-scope negative control, testresten opgeruimd; one DoD-close line per repo appended under this PRD.
