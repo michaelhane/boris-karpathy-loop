@@ -40,6 +40,8 @@ Look for:
 - Naming that prejudges semantics
 - TODO / FIXME comments hiding real questions
 - Defaults that change observable behavior without comment
+- Error fallbacks that return a valid-looking empty (`[]` / `{}` / `0`) — caller can't tell "failed" from "legitimately empty"; a fallback `[]` into a dedup/diff/aggregation silently corrupts it (empty "what exists?" set → duplicates)
+- Recognisers that silently reroute unrecognised input to a default bucket — recognition vs validation collapsed into one strict gate, never a visible reject
 
 ### 2. Surgical changes — minimum viable diff
 

@@ -1,6 +1,6 @@
 {
   "name": "boris-karpathy-loop",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Boris-style workflow discipline plus Karpathy-inspired review and tutoring subagents. Findings and lessons land on disk for cross-session learning. Designed to compound with Graphify-indexed knowledge.",
   "author": {
     "name": "michaelhane",
