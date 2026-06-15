@@ -108,6 +108,7 @@ python scripts/extract_patterns.py \
 | `/tutor` | `commands/tutor.md` | Invoke deep teaching mode |
 | `/setup-graphify` | `commands/setup-graphify.md` | Per-project setup walk-through — detect state, prompt for choices, execute with confirmation |
 | `/diagnose-loop` | `commands/diagnose-loop.md` | Read-only health check; reports issues + fix commands, never auto-fixes |
+| `/workflow-review` | `commands/workflow-review.md` + `workflows/workflow-review.js` | Heavy multi-agent review panel — planner shards the diff, reviewers fan out, every blocker/concern is adversarially verified, one canonical review lands in `reviews/` |
 | Pattern extractor | `scripts/extract_patterns.py` | Promote closed findings into the anti-pattern guide |
 | Skill regenerator | `scripts/regen_skill.py` | Sync `boris-cherny-way` skill from the KB (activates once KB is published) |
 | Hook fixer (Windows) | `scripts/fix_graphify_hook.py` | Patch the graphify post-commit hook so it refreshes the graph reliably on Windows (idempotent; re-run after `graphify hook install`) |
@@ -184,6 +185,29 @@ terminal is invisible to it (that would need an installed git
 > Add `.claude/review-gate-log.jsonl` and `.claude/review-gate-state.json` (the
 > nudge's per-commit debounce state) to your `.gitignore`.
 
+## `/workflow-review` — the multi-agent review panel
+
+`/review` is one agent walking four principles in sequence and certifying its own
+findings. `/workflow-review` is the heavy counterpart for large or risky changes:
+
+1. A **planner** reads the diff (and the gate's `must_review` globs) and picks a
+   shard strategy — `by-principle` for small diffs, `by-file` for many files,
+   `matrix` (principle × file) for large, risky ones.
+2. Reviewers **fan out** per shard, each reading its principle(s) from
+   `agents/karpathy-reviewer.md` (single source of truth) and reporting findings
+   as data.
+3. Every **blocker/concern** is **adversarially verified** — three skeptics try to
+   refute it; a majority refutation drops it. (Nits pass through unverified.)
+4. Findings are **deduped** (pure code) and a **synthesizer** writes one review in
+   the exact `reviews/` schema — same `commit_hash` stamp, so the review-gate and
+   Graphify treat it identically.
+
+It is **opt-in and heavy** — it spawns a planner, one reviewer per shard, up to
+three skeptics per finding, and a synthesizer. For small changes, use `/review`.
+Whatever the planner caps (shards grouped, skeptics reduced under a tight token
+budget) is recorded in the review artifact — never silently dropped. Requires the
+`Workflow` tool; where it's unavailable, the command says so and offers `/review`.
+
 ## Why three layers + a tutor
 
 **Boris alone** captures discipline but no critique. The agent builds; nothing checks.
@@ -221,7 +245,8 @@ Bad fit:
 - v0.2.x — surgical fixes from in-loop review (tutor MC drift, `/loop-bootstrap` branch-mix, `/review` content-type judgment, naming-polish nits)
 - v0.3 — **review-gate hook** (opt-in merge/push-to-master review floor); next: severity threshold tuning, `/tutor` learning-log review
 - v0.3.x — review-gate git-hook variant (catch merges typed directly in a terminal, not just Claude-driven ones)
-- v0.4 — tighter Graphify integration: review and learning files as typed graph nodes
+- v0.4 — **`/workflow-review`**: planner-driven multi-agent review panel (fan-out + adversarial verification of every finding)
+- v0.5 — tighter Graphify integration: review and learning files as typed graph nodes
 - v0.x — based on what dogfooding surfaces
 
 ## Sources & attribution

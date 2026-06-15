@@ -864,3 +864,12 @@ mode; the PreToolUse path is the default.
 - **Source**: two real silent-failure incidents observed in chief-of-staff (fetch-fallback-`[]` → duplicate task creation `9201667`; gage poort `^\d{9}$` silently misrouting a typo-ID `4d61323`). Distilled in memory `feedback_empty-on-error-silent-failure.md`.
 - **Patch, not minor**: additive guidance, no hook/command/interface change. `claude plugin update` is version-gated against the local Directory marketplace, so the bump is the *delivery mechanism* (a same-version edit will not re-pull the cache).
 - **DoD**: self-reviewed via `/review` (`reviews/2026-06-13-v0.3.2-p1-silent-failure-bullets.md` — 0 blockers / 0 concerns / 2 nits, both addressed in-session: bullet length tightened + this Phase L entry → status `resolved`). `claude plugin validate` clean. Dogfood signal #2 (review strictness on a moderate edit): in-band. Restart needed for the running session to load 0.3.2.
+
+## Phase M — v0.4.0 /workflow-review (multi-agent review panel)
+
+Planner-driven review panel. Full spec: `PRD-workflow-review.md`. Task-by-task
+build: `PLAN-workflow-review.md`. Ships `workflows/workflow-review.js` +
+`commands/workflow-review.md`, registers the command, bumps to v0.4.0. DoD =
+live dogfood: a real multi-file diff yields a schema-valid `reviews/*.md` stamped
+with HEAD, `_index.md` updated, summary printed, and a planted weak finding
+visibly dropped by the adversarial pass.
