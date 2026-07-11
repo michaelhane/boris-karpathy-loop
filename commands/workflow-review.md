@@ -18,7 +18,7 @@ heavy counterpart to `/review` — use it for large or risky changes, not typos.
 
 2. **Read the gate config (optional).** If `.claude/review-gate.json` exists, read its `must_review` array and pass it as risk hints. If absent, pass `[]`.
 
-3. **Capture the date.** Run `date +%F`. The Workflow script cannot compute the date itself, so it must be passed in.
+3. **Capture the date (`YYYY-MM-DD`).** Run `date +%F` **via the Bash tool** (Git Bash / POSIX) — do **not** run it under PowerShell, where `date +%F` prints a wrong string that would become the artifact's filename and frontmatter date. On a PowerShell-only host use `Get-Date -Format yyyy-MM-dd` instead. The Workflow script cannot compute the date itself (`Date.now()` is blocked in the runtime), so the resolved date must be passed in as `today`.
 
 4. **Launch the panel.** Call the `Workflow` tool with:
    - `scriptPath`: `${CLAUDE_PLUGIN_ROOT}/workflows/workflow-review.js`

@@ -278,6 +278,20 @@ Open the file for full details.`,
 return { summary, strategy: plan.strategy, shards: plan.shards.length, counts }
 ```
 
+> **Post-dogfood correction (2026-07-11).** The first two real runs surfaced that
+> the pipeline listing above bakes in the empty-on-error anti-pattern this panel
+> is built to catch (its own principle P1). The **shipped** `workflows/workflow-review.js`
+> supersedes the two spots below; do not copy the listing above verbatim:
+> - **Stage-2 reviewer guard** (`if (!review) return {findings: []}`): a failed or
+>   malformed reviewer was byte-identical to a clean lens, so a crashed shard read
+>   as "clean". Fixed: return `{failed: true, lens}`, collect failed + null-dropped
+>   shards, and force them into the artifact's `verification_needed`.
+> - **Skeptic tally** (`votes.filter(Boolean)` over the requested `skeptics` count):
+>   if every skeptic errored, `refutes=0` and the finding survived labeled
+>   "3/3 upheld" — a verification that never ran. Fixed: judge over the votes that
+>   actually returned; zero returns ⇒ keep but label "unverified", and the degraded
+>   skeptic count is now visible per-finding in the `verified` field.
+
 - [ ] **Step 2: Eyeball-review the script against the spec**
 
 No automated syntax gate applies (see "Verification reality" above — `node --check` is invalid for these scripts). Confirm by eye:

@@ -11,13 +11,54 @@ export const meta = {
 
 // ---- args (supplied by the /workflow-review command) ----
 // { today, commitHash, range, scopeFiles, mustReview, reviewsDir, principlesPath }
-const today = (args && args.today) || 'unknown-date'
-const commitHash = (args && args.commitHash) || 'UNKNOWN'
-const range = (args && args.range) || null            // null => uncommitted (git diff HEAD)
-const scopeFiles = (args && args.scopeFiles) || null  // null => all changed files
-const mustReview = (args && args.mustReview) || []
-const reviewsDir = (args && args.reviewsDir) || 'reviews'
-const principlesPath = (args && args.principlesPath) || 'agents/karpathy-reviewer.md'
+// The runtime may hand args through as a JSON string; normalise to an object so a
+// launch never silently falls back to placeholder values (which would emit a
+// plausible-but-wrong artifact named unknown-date / commit UNKNOWN).
+const a = typeof args === 'string' ? JSON.parse(args) : (args || {})
+
+// Required args: fail loudly rather than stub. today/commitHash stamp the artifact;
+// principlesPath is where reviewers read the four principles (no repo-local default,
+// so the SSOT stays portable to any consuming project).
+const required = ['today', 'commitHash', 'principlesPath'].filter((k) => !a[k])
+if (required.length) {
+  log(`Missing required args: ${required.join(', ')} - aborting before any agent runs.`)
+  return {
+    error: 'bad-args',
+    summary: `workflow-review: missing required args: ${required.join(', ')}. Launch via /workflow-review, which supplies them.`,
+  }
+}
+const today = a.today
+const commitHash = a.commitHash
+const principlesPath = a.principlesPath
+
+// Genuinely-optional args keep their defaults.
+const range = a.range || null            // null => uncommitted (git diff HEAD)
+const scopeFiles = a.scopeFiles || null  // null => all changed files
+const mustReview = a.mustReview || []
+const reviewsDir = a.reviewsDir || 'reviews'
+
+// ---- per-phase model + reasoning-effort tuning ----
+// Review + verify are the quality-critical stages: pinned to opus/high so the
+// review never silently degrades if the session runs on a lighter model. The
+// synthesizer only assembles already-verified+deduped findings into markdown from
+// a fixed template, so it runs lighter (sonnet/medium) without touching review
+// quality. The planner picks the shard strategy: opus, but effort need not max out.
+const TUNING = {
+  plan: { model: 'opus', effort: 'high' },
+  review: { model: 'opus', effort: 'high' },
+  verify: { model: 'opus', effort: 'high' },
+  synthesize: { model: 'sonnet', effort: 'medium' },
+}
+
+// ---- verification tuning ----
+// Full adversarial panel = 3 skeptics per BLOCKER/CONCERN (majority-refute drops it).
+// Under token pressure we degrade to a single skeptic to finish the run rather than
+// abort; the per-finding `verified` label records the ACTUAL count so a finding
+// judged under the degraded gate is visibly distinct from a full-panel verdict.
+// 80000 ~= headroom for one more full shard (planner + reviewer + 3 skeptics + synth).
+const SKEPTICS_FULL = 3
+const SKEPTICS_REDUCED = 1
+const LOW_BUDGET_TOKENS = 80000
 
 const diffCmd = range ? `git diff ${range}` : 'git diff HEAD'
 const numstatCmd = range ? `git diff --numstat ${range}` : 'git diff --numstat HEAD'
@@ -122,7 +163,7 @@ Choose a shard strategy:
 
 Cap total shards at 8. If by-file/matrix would exceed 8, group files into <=8 buckets and record that in caps_applied.
 For each shard return: principles (array of integers 1..4), files (array of repo-root paths, or ["*"] for the whole diff), and a one-line why.`,
-  { phase: 'Plan', schema: PLAN_SCHEMA }
+  { phase: 'Plan', schema: PLAN_SCHEMA, ...TUNING.plan }
 )
 
 if (!plan || !plan.shards || !plan.shards.length) {
@@ -143,18 +184,28 @@ First, Read the file at \`${principlesPath}\` and study ONLY these principle(s):
 Then run \`${diffCmd}\` and review ${scope} through ONLY those principle(s).
 Be rigorous, not nice. If genuinely clean for your lens, return an empty findings array - do NOT invent findings to fill a quota.
 Each finding: principle (one of ${shard.principles.join('/')}), severity (BLOCKER|CONCERN|NIT), file (repo-root path), line (number, or 0 if N/A), title (<=8 words), why (concrete impact), suggested_resolution (a direction, not a patch).`,
-      { label: `review:shard${i + 1}`, phase: 'Review', schema: FINDINGS_SCHEMA }
+      { label: `review:shard${i + 1}`, phase: 'Review', schema: FINDINGS_SCHEMA, ...TUNING.review }
     )
   },
   async (review, shard, i) => {
-    if (!review || !review.findings) return { shardIndex: i, findings: [] }
+    // C2: a failed/malformed reviewer is NOT a clean lens. An agent that dies
+    // returns null; a schema-violating one lacks a findings array. Either way,
+    // mark the shard failed so synthesis surfaces the UNREVIEWED slice instead of
+    // the diff silently reading as clean (the empty-on-error anti-pattern this
+    // panel exists to catch).
+    const lens = (shard.files && shard.files[0] !== '*' ? shard.files.join(', ') : 'whole diff') +
+      ` [P${(shard.principles || []).join('/')}]`
+    if (!review || !Array.isArray(review.findings)) {
+      log(`REVIEWER FAILED shard${i + 1} (${lens}) - lens left UNREVIEWED`)
+      return { shardIndex: i, findings: [], failed: true, lens }
+    }
     const kept = []
     for (const f of review.findings) {
       if (f.severity === 'NIT') {
         kept.push({ ...f, verified: 'nit-unverified' })
         continue
       }
-      const skeptics = budget.total && budget.remaining() < 80000 ? 1 : 3
+      const skeptics = budget.total && budget.remaining() < LOW_BUDGET_TOKENS ? SKEPTICS_REDUCED : SKEPTICS_FULL
       const votes = await parallel(
         Array.from({ length: skeptics }, (_v, k) => () =>
           agent(
@@ -162,20 +213,40 @@ Each finding: principle (one of ${shard.principles.join('/')}), severity (BLOCKE
 Run \`${diffCmd}\` to inspect the actual change.
 Finding - principle ${f.principle}, ${f.severity}: "${f.title}" at ${f.file}:${f.line}. Why claimed: ${f.why}.
 Is this finding real and material to THIS diff, or is it wrong / overstated / not actually present? Return refuted (boolean) + a one-line reason.`,
-            { label: `verify:s${i + 1}:${f.file}`, phase: 'Verify', schema: VERDICT_SCHEMA }
+            { label: `verify:s${i + 1}:${f.file}`, phase: 'Verify', schema: VERDICT_SCHEMA, ...TUNING.verify }
           )
         )
       )
-      const refutes = votes.filter(Boolean).filter((v) => v.refuted).length
-      const survived = refutes < Math.ceil(skeptics / 2)
-      log(`${survived ? 'KEEP' : 'DROP'} [${f.severity}] ${f.title} (${f.file}:${f.line}) - ${refutes}/${skeptics} refuted`)
-      if (survived) kept.push({ ...f, verified: `${skeptics - refutes}/${skeptics} upheld` })
+      // C1: judge over the skeptics that ACTUALLY voted, not the count we asked for.
+      // If none returned (all errored), do NOT claim a verdict - keep the finding
+      // but label it unverified, so the artifact never asserts a "3/3 upheld"
+      // verification that never ran.
+      const returned = votes.filter(Boolean)
+      if (returned.length === 0) {
+        log(`UNVERIFIED [${f.severity}] ${f.title} (${f.file}:${f.line}) - all ${skeptics} skeptics errored`)
+        kept.push({ ...f, verified: `unverified (all ${skeptics} skeptics errored)` })
+        continue
+      }
+      const refutes = returned.filter((v) => v.refuted).length
+      const survived = refutes < Math.ceil(returned.length / 2)
+      log(`${survived ? 'KEEP' : 'DROP'} [${f.severity}] ${f.title} (${f.file}:${f.line}) - ${refutes}/${returned.length} refuted`)
+      if (survived) kept.push({ ...f, verified: `${returned.length - refutes}/${returned.length} upheld` })
     }
-    return { shardIndex: i, findings: kept }
+    return { shardIndex: i, findings: kept, failed: false }
   }
 )
 
 // ---- Phase 4: Dedup (pure JS, no agent) ----
+// C2: collect shards that never produced a real review - explicit `failed:true`
+// markers AND null entries (a stage that threw is dropped to null by pipeline()).
+// These are unreviewed slices, not clean ones, and must reach the artifact.
+const failedShards = reviewed.reduce((acc, r, idx) => {
+  if (r === null) acc.push(`shard${idx + 1} (pipeline error)`)
+  else if (r.failed) acc.push(`shard${idx + 1}: ${r.lens}`)
+  return acc
+}, [])
+if (failedShards.length) log(`WARNING: ${failedShards.length}/${reviewed.length} shard(s) left UNREVIEWED: ${failedShards.join('; ')}`)
+
 const allFindings = reviewed.filter(Boolean).flatMap((r) => r.findings)
 const deduped = dedupeFindings(allFindings)
 log(`${allFindings.length} findings survived verify -> ${deduped.length} after dedup`)
@@ -183,6 +254,9 @@ log(`${allFindings.length} findings survived verify -> ${deduped.length} after d
 // ---- Phase 5: Synthesize ----
 phase('Synthesize')
 const counts = tallySeverity(deduped)
+const failedNote = failedShards.length
+  ? `\n\nCOVERAGE WARNING - ${failedShards.length} reviewer shard(s) FAILED and left part of the diff UNREVIEWED: ${failedShards.join('; ')}. You MUST add a verification_needed bullet that names these unreviewed shards, and append " [WARNING: ${failedShards.length} shard(s) unreviewed]" to the review_method string, so a low finding count is never mistaken for full coverage.`
+  : ''
 const summary = await agent(
   `You are the SYNTHESIZER for a Karpathy review panel. Do NOT fix anything - report only.
 Run \`${nameOnlyCmd}\` to get the list of touched files.
@@ -223,7 +297,7 @@ review_method: "workflow-review (${plan.strategy}, ${plan.shards.length} shards$
 <brief, honest>
 
 The findings to write (already adversarially verified + deduped), as JSON:
-${JSON.stringify(deduped, null, 2)}
+${JSON.stringify(deduped, null, 2)}${failedNote}
 
 After writing the review file, append ONE line to \`${reviewsDir}/_index.md\` (create the file if missing), matching the existing one-line format:
 - ${today} \`<feature-slug>\` - ${counts.blocker} blockers, ${counts.concern} concerns, ${counts.nit} nits ([link](./${today}-<feature-slug>.md))
@@ -235,7 +309,7 @@ workflow-review: ${reviewsDir}/${today}-<feature-slug>.md
   - ${counts.nit} nits
   - strategy: ${plan.strategy} (${plan.shards.length} shards)
 Open the file for full details.`,
-  { phase: 'Synthesize' }
+  { phase: 'Synthesize', ...TUNING.synthesize }
 )
 
 return { summary, strategy: plan.strategy, shards: plan.shards.length, counts }
