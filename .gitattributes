@@ -1,0 +1,5 @@
+# Keep JavaScript LF in the repo. A Windows checkout with core.autocrlf=true rewrites
+# these to CRLF, and the Workflow tool rejects a `scriptPath` whose file contains CR
+# (\r counts as a control character) — which breaks /workflow-review's scriptPath launch
+# on Windows. Pinning eol=lf keeps the workflow script launchable everywhere.
+*.js text eol=lf
