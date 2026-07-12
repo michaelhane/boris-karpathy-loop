@@ -125,7 +125,11 @@ const VERDICT_SCHEMA = {
   },
 }
 
-// ---- pure-JS helpers ----
+// ===== PURE-BEGIN =====
+// Pure, dependency-free helpers (no Workflow globals). tests/test_workflow_review.js
+// slices the source between the PURE-BEGIN / PURE-END fences and evals it, so it can
+// unit-test this logic without launching the panel. Keep the fence markers exact and
+// keep everything between them free of agent()/parallel()/log()/args/budget.
 function dedupeFindings(findings) {
   const seen = new Set()
   const out = []
@@ -147,6 +151,40 @@ function tallySeverity(findings) {
   }
   return c
 }
+
+// Verdict for one finding given the raw skeptic votes (may contain nulls for errored
+// skeptics) and the count that was REQUESTED. Refutes are counted only over votes that
+// actually returned, but survival is judged against a majority of the requested panel -
+// so a partial skeptic outage can never collapse the gate into a single-vote veto, and
+// missing votes are inconclusive rather than implicit refutes. Zero returns => keep the
+// finding but never claim a verdict. Returns { survived, unverified, refutes, returned,
+// errored, label }. Assumes an odd panel size (the only callers pass SKEPTICS_FULL=3 or
+// SKEPTICS_REDUCED=1); an even size would make ceil(n/2) a bare-minority threshold.
+function verifyVerdict(votes, skeptics) {
+  const returned = votes.filter(Boolean)
+  const errored = skeptics - returned.length
+  const skepticWord = (n) => `skeptic${n === 1 ? '' : 's'}`
+  if (returned.length === 0) {
+    return { survived: true, unverified: true, refutes: 0, returned: 0, errored, label: `unverified (all ${skeptics} ${skepticWord(skeptics)} errored)` }
+  }
+  const refutes = returned.filter((v) => v.refuted).length
+  const survived = refutes < Math.ceil(skeptics / 2)
+  const label = errored
+    ? `${returned.length - refutes}/${returned.length} upheld (${errored}/${skeptics} skeptics errored)`
+    : `${returned.length - refutes}/${returned.length} upheld`
+  return { survived, unverified: false, refutes, returned: returned.length, errored, label }
+}
+
+// Shards that never produced a real review: explicit { failed:true } markers AND null
+// entries (a pipeline stage that threw is dropped to null). Returns human-readable labels.
+function collectFailedShards(reviewed) {
+  return reviewed.reduce((acc, r, idx) => {
+    if (r === null) acc.push(`shard${idx + 1} (pipeline error)`)
+    else if (r && r.failed) acc.push(`shard${idx + 1}: ${r.lens}`)
+    return acc
+  }, [])
+}
+// ===== PURE-END =====
 
 // ---- Phase 1: Plan ----
 phase('Plan')
@@ -217,20 +255,12 @@ Is this finding real and material to THIS diff, or is it wrong / overstated / no
           )
         )
       )
-      // C1: judge over the skeptics that ACTUALLY voted, not the count we asked for.
-      // If none returned (all errored), do NOT claim a verdict - keep the finding
-      // but label it unverified, so the artifact never asserts a "3/3 upheld"
-      // verification that never ran.
-      const returned = votes.filter(Boolean)
-      if (returned.length === 0) {
-        log(`UNVERIFIED [${f.severity}] ${f.title} (${f.file}:${f.line}) - all ${skeptics} skeptics errored`)
-        kept.push({ ...f, verified: `unverified (all ${skeptics} skeptics errored)` })
-        continue
-      }
-      const refutes = returned.filter((v) => v.refuted).length
-      const survived = refutes < Math.ceil(returned.length / 2)
-      log(`${survived ? 'KEEP' : 'DROP'} [${f.severity}] ${f.title} (${f.file}:${f.line}) - ${refutes}/${returned.length} refuted`)
-      if (survived) kept.push({ ...f, verified: `${returned.length - refutes}/${returned.length} upheld` })
+      // Verdict via the pure helper (PURE block above; unit-tested in
+      // tests/test_workflow_review.js). unverified => keep but claim no verdict.
+      const v = verifyVerdict(votes, skeptics)
+      const decision = v.unverified ? 'UNVERIFIED' : v.survived ? 'KEEP' : 'DROP'
+      log(`${decision} [${f.severity}] ${f.title} (${f.file}:${f.line}) - ${v.refutes}/${skeptics} refuted${v.errored ? `, ${v.errored} errored` : ''}`)
+      if (v.survived) kept.push({ ...f, verified: v.label })
     }
     return { shardIndex: i, findings: kept, failed: false }
   }
@@ -240,11 +270,7 @@ Is this finding real and material to THIS diff, or is it wrong / overstated / no
 // C2: collect shards that never produced a real review - explicit `failed:true`
 // markers AND null entries (a stage that threw is dropped to null by pipeline()).
 // These are unreviewed slices, not clean ones, and must reach the artifact.
-const failedShards = reviewed.reduce((acc, r, idx) => {
-  if (r === null) acc.push(`shard${idx + 1} (pipeline error)`)
-  else if (r.failed) acc.push(`shard${idx + 1}: ${r.lens}`)
-  return acc
-}, [])
+const failedShards = collectFailedShards(reviewed)
 if (failedShards.length) log(`WARNING: ${failedShards.length}/${reviewed.length} shard(s) left UNREVIEWED: ${failedShards.join('; ')}`)
 
 const allFindings = reviewed.filter(Boolean).flatMap((r) => r.findings)
@@ -292,11 +318,14 @@ review_method: "workflow-review (${plan.strategy}, ${plan.shards.length} shards$
 - **Where:** path:line
 - **Why it matters:** <impact>
 - **Suggested resolution:** <a direction, not a fix>
+- **Verification:** <this finding's \`verified\` value VERBATIM from the JSON below — e.g. "3/3 upheld", "1/1 upheld (2/3 skeptics errored)", "unverified (all 3 skeptics errored)", or "nit-unverified">
 
 ## What was done well
 <brief, honest>
 
-The findings to write (already adversarially verified + deduped), as JSON:
+The findings to write (already adversarially verified + deduped), as JSON. Each finding
+carries a \`verified\` field — copy it VERBATIM into that finding's **Verification** line so a
+degraded or unverified verdict stays visible in the artifact, not just in the run logs:
 ${JSON.stringify(deduped, null, 2)}${failedNote}
 
 After writing the review file, append ONE line to \`${reviewsDir}/_index.md\` (create the file if missing), matching the existing one-line format:

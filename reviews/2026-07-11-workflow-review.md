@@ -95,8 +95,14 @@ the same session, on top of `e5fd7b2`:
   crashed shard can no longer read as "clean".
 - **C3 / C4** (plan-doc mirrors): post-dogfood correction note added to
   `PLAN-workflow-review.md`; the degraded skeptic count is now visible per-finding in the
-  `verified` field. Residual (not fixed): a finding dropped under a degraded 1-skeptic
-  gate is not recorded in the artifact — only reachable under an explicit token budget.
+  `verified` field.
+  **Correction (2026-07-12):** the self-review of this very fix commit
+  (`reviews/2026-07-12-workflow-review-verify-gate.md`) caught that the C1 fix here was
+  incomplete and this claim was WRONG: judging survival over `returned.length` let a
+  *partial* skeptic outage (e.g. 2 of 3 errored) collapse the majority gate into a
+  single-vote veto — no token budget involved. Fixed in the follow-up: survival is judged
+  against a majority of the *requested* panel, so missing votes are never implicit refutes
+  and a degraded drop is again only possible under the intentional budget reduction.
 - **Nits**: `80000` lifted to `LOW_BUDGET_TOKENS` + `SKEPTICS_FULL/REDUCED` with rationale;
   `UNKNOWN`/`unknown-date` defaults replaced by fail-loud on missing required args;
   `date +%F` documented as Bash-only in the command.
