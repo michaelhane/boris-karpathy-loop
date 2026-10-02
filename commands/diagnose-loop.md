@@ -120,7 +120,7 @@ Section header per check, color-coded if the terminal supports it. For each issu
 
 If no findings: print exactly this and exit:
 
-> Loop healthy. Plugin installed, graphify integrated, hooks active, all keys valid, no spook files. No action needed.
+> Loop healthy. Plugin installed, graphify integrated, hooks active, API keys present (no placeholders), no spook files. No action needed.
 
 ### When findings exist
 

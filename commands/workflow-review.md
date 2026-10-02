@@ -37,7 +37,10 @@ heavy counterpart to `/review` — use it for large or risky changes, not typos.
      Use `null` for `range` when reviewing uncommitted changes, and `null` for `scopeFiles` when reviewing every changed file.
    This command's instruction to call `Workflow` is the explicit opt-in the tool requires.
 
-5. **Report.** When the workflow finishes, print the `summary` it returns — nothing more. Do not list every finding inline; the `reviews/` artifact is the source of truth.
+5. **Report.** When the workflow finishes:
+   - If the result has an `error` field, the run failed: print its `summary` as a failure and say no complete review was written.
+   - Otherwise check that the review file named on the summary's first line exists (the Workflow script cannot read files, so it trusts the synthesizer's path). If it is missing, say so instead of printing the summary.
+   - Then print the `summary` — nothing more. Do not list every finding inline; the `reviews/` artifact is the source of truth.
 
 6. **Do NOT auto-fix.** The panel reports only. The user decides what to act on.
 

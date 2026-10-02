@@ -14,8 +14,8 @@ This plugin ships a `PreToolUse` (Bash) + `Stop` review-gate (`hooks/`), opt-in 
 
 - Verify it's loaded with `claude plugin details boris-karpathy-loop@boris-karpathy-loop` — **`/hooks` and `/plugin` are unavailable in this environment**, so don't rely on them.
 - After changing **any** plugin file (`hooks/`, `agents/`, `commands/`, `skills/`, `.claude-plugin/*.json`): **bump `plugin.json` `version` first** — `claude plugin update` is version-gated against the local cache, so a same-version edit will NOT re-pull (the bump is the delivery mechanism, not ceremony). Then `claude plugin update boris-karpathy-loop@boris-karpathy-loop` and **restart Claude** (plugin content loads at session start). To force-refresh at the *same* version: `claude plugin uninstall …@…` + `install …@…`. Marketplace is a local Directory → no GitHub push needed for local use. (memory `plugin-cache-version-gated`)
-- Tests: `python tests/test_review_gate.py` (stdlib only). Full plan + DoD: COMMIT_PLAN Phase J (v0.3.0) + Phase K (v0.3.1).
-- **Live-proven 2026-06-11**: both triggers fired in a real session (merge-gate `ask` + stop-nudge; evidence in the COMMIT_PLAN DoD-close + `reviews/2026-06-11-dod-close-prd-fire-test.md`). First opt-in: chief-of-staff `f28c79f`. NB: `claude plugin details` showing "Agents (0)" is a harmless display quirk — the karpathy-reviewer launches fine.
+- Tests: `python tests/test_review_gate.py` and `node tests/test_workflow_review.js` (both dependency-free). Full plan + DoD: COMMIT_PLAN Phase J (v0.3.0) + Phase K (v0.3.1).
+- Both triggers (merge-gate `ask` + stop-nudge) are proven live; evidence in the COMMIT_PLAN DoD-close. `claude plugin details` showing "Agents (0)" is a harmless display quirk — the karpathy-reviewer launches fine.
 
 ## /workflow-review (v0.4.0)
 
@@ -32,5 +32,3 @@ working).
 - The script uses top-level `await`/`return`, legal only inside the Workflow
   runtime — `node --check` is NOT a valid syntax gate (it errors on the top-level
   return). The first `/workflow-review` launch is the syntax/runtime gate.
-- After editing any plugin file: bump `plugin.json` version first (cache is
-  version-gated), then `claude plugin update` + restart.

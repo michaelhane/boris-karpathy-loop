@@ -30,8 +30,8 @@ for (const forbidden of ['agent(', 'parallel(', 'pipeline(', 'log(', 'phase(', '
   assert(!codeOnly.includes(forbidden), `PURE block must not use Workflow global: ${forbidden}`)
 }
 
-const { dedupeFindings, tallySeverity, verifyVerdict, collectFailedShards } = new Function(
-  block + '\nreturn { dedupeFindings, tallySeverity, verifyVerdict, collectFailedShards }'
+const { dedupeFindings, tallySeverity, verifyVerdict, collectFailedShards, buildSummary } = new Function(
+  block + '\nreturn { dedupeFindings, tallySeverity, verifyVerdict, collectFailedShards, buildSummary }'
 )()
 
 let passed = 0
@@ -159,6 +159,25 @@ check('tallySeverity counts by severity', () => {
     { severity: 'BLOCKER' }, { severity: 'CONCERN' }, { severity: 'CONCERN' }, { severity: 'NIT' },
   ])
   assert.deepStrictEqual(c, { blocker: 1, concern: 2, nit: 1 })
+})
+
+console.log('buildSummary:')
+
+check('summary carries path, counts and strategy', () => {
+  const s = buildSummary('reviews/2026-10-02-x.md', { blocker: 1, concern: 2, nit: 3 }, 'by-file', 4, 0)
+  assert.strictEqual(s, [
+    'workflow-review: reviews/2026-10-02-x.md',
+    '  - 1 blockers',
+    '  - 2 concerns',
+    '  - 3 nits',
+    '  - strategy: by-file (4 shards)',
+    'Open the file for full details.',
+  ].join('\n'))
+})
+
+check('summary warns about unreviewed shards', () => {
+  const s = buildSummary('r.md', { blocker: 0, concern: 0, nit: 0 }, 'matrix', 8, 2)
+  assert(s.includes('  - WARNING: 2 shard(s) unreviewed\nOpen the file'))
 })
 
 console.log(`\nAll ${passed} tests passed.`)

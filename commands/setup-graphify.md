@@ -45,7 +45,7 @@ Only ask questions detection couldn't answer:
   - `GEMINI_API_KEY` set → gemini
   - else `ANTHROPIC_API_KEY` set → claude
   - else no default — prompt explicitly
-- **Project size warning**: if source-file count > 50 and chosen backend = `claude`, warn that Anthropic tier 1 caps at 30K tokens/min and may rate-limit; suggest gemini.
+- **Project size warning**: if source-file count > 50 and chosen backend = `claude`, warn that lower Anthropic API rate-limit tiers can throttle a large extract; suggest gemini.
 - **Commit `graphify-out/cache/`?** Default no — adds many small files. If no, plan to append `graphify-out/cache/` to `.gitignore` later.
 
 Confirm chosen values back to the user before executing anything.
@@ -54,7 +54,7 @@ Confirm chosen values back to the user before executing anything.
 
 Count source files (`.md`, `.py`, `.ts`, `.js`, `.go`, `.rs`, etc.). Exclude `node_modules/`, `.git/`, `graphify-out/`, `.venv/`.
 
-Show estimate based on chosen backend:
+Show estimate based on chosen backend (rough figures from 2026-05 — say so, prices move):
 - **gemini**: ~$0.05–0.20 per 50 files
 - **claude**: ~$0.20–0.50 per 50 files
 - **ollama**: free, slower

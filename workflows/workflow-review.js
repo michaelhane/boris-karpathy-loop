@@ -125,6 +125,12 @@ const VERDICT_SCHEMA = {
   },
 }
 
+const SYNTH_SCHEMA = {
+  type: 'object',
+  required: ['reviewPath'],
+  properties: { reviewPath: { type: 'string' } },
+}
+
 // ===== PURE-BEGIN =====
 // Pure, dependency-free helpers (no Workflow globals). tests/test_workflow_review.js
 // slices the source between the PURE-BEGIN / PURE-END fences and evals it, so it can
@@ -183,6 +189,17 @@ function collectFailedShards(reviewed) {
     else if (r && r.failed) acc.push(`shard${idx + 1}: ${r.lens}`)
     return acc
   }, [])
+}
+
+// The chat summary /workflow-review prints. Built in code (not by the synthesizer)
+// because every value except the artifact path is already known here.
+function buildSummary(reviewPath, counts, strategy, shardCount, failedCount) {
+  return `workflow-review: ${reviewPath}
+  - ${counts.blocker} blockers
+  - ${counts.concern} concerns
+  - ${counts.nit} nits
+  - strategy: ${strategy} (${shardCount} shards)${failedCount ? `\n  - WARNING: ${failedCount} shard(s) unreviewed` : ''}
+Open the file for full details.`
 }
 // ===== PURE-END =====
 
@@ -283,7 +300,7 @@ const counts = tallySeverity(deduped)
 const failedNote = failedShards.length
   ? `\n\nCOVERAGE WARNING - ${failedShards.length} reviewer shard(s) FAILED and left part of the diff UNREVIEWED: ${failedShards.join('; ')}. You MUST add a verification_needed bullet that names these unreviewed shards, and append " [WARNING: ${failedShards.length} shard(s) unreviewed]" to the review_method string, so a low finding count is never mistaken for full coverage.`
   : ''
-const summary = await agent(
+const synth = await agent(
   `You are the SYNTHESIZER for a Karpathy review panel. Do NOT fix anything - report only.
 Run \`${nameOnlyCmd}\` to get the list of touched files.
 Use the Write tool to create \`${reviewsDir}/${today}-<feature-slug>.md\` (derive a short kebab-case feature-slug from the change). The Write tool creates parent directories.
@@ -331,14 +348,18 @@ ${JSON.stringify(deduped, null, 2)}${failedNote}
 After writing the review file, append ONE line to \`${reviewsDir}/_index.md\` (create the file if missing), matching the existing one-line format:
 - ${today} \`<feature-slug>\` - ${counts.blocker} blockers, ${counts.concern} concerns, ${counts.nit} nits ([link](./${today}-<feature-slug>.md))
 
-Then return EXACTLY this summary text and nothing else:
-workflow-review: ${reviewsDir}/${today}-<feature-slug>.md
-  - ${counts.blocker} blockers
-  - ${counts.concern} concerns
-  - ${counts.nit} nits
-  - strategy: ${plan.strategy} (${plan.shards.length} shards)
-Open the file for full details.`,
-  { phase: 'Synthesize', ...TUNING.synthesize }
+Return reviewPath: the repo-root path of the review file you wrote.`,
+  { phase: 'Synthesize', schema: SYNTH_SCHEMA, ...TUNING.synthesize }
 )
+
+if (!synth || !synth.reviewPath) {
+  log('Synthesizer returned no review path - artifact may be missing.')
+  return {
+    error: 'no-artifact',
+    summary: `workflow-review: synthesizer did not report a review file; check ${reviewsDir}/ and the run log.`,
+    counts,
+  }
+}
+const summary = buildSummary(synth.reviewPath, counts, plan.strategy, plan.shards.length, failedShards.length)
 
 return { summary, strategy: plan.strategy, shards: plan.shards.length, counts }
