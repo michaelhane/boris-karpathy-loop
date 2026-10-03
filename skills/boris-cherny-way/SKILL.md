@@ -26,7 +26,7 @@ structure, log decisions, compound across sessions.
 
 ### Start of session
 
-Simulate `/ctx` if no command exists:
+Read the project context:
 
 1. Read project's CLAUDE.md.
 2. Read PROJECT_STATE.md if it exists — the live status.
@@ -34,7 +34,7 @@ Simulate `/ctx` if no command exists:
 4. Generate a short TODO list for the current session based on PROJECT_STATE.
 5. State the current goal explicitly before any code touches keys.
 
-If `loop-bootstrap` command is also installed (boris-karpathy-loop), run that too — it loads review findings and graph context on top.
+Run `/loop-bootstrap` too — it loads review findings and graph context on top.
 
 ### During session
 

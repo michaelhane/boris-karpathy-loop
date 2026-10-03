@@ -15,17 +15,15 @@ Run when something feels wrong with the loop but you don't know what. This comma
 
 Run all checks. Each emits ✅ / ⚠️ / ❌ + context.
 
-### 1. Stale `claude` processes
+### 1. `claude` processes (informational)
 
 Count running processes:
 - Windows: `Get-Process claude -ErrorAction SilentlyContinue | Measure-Object | Select-Object -ExpandProperty Count`
 - macOS/Linux: `pgrep -c claude` (returns count) or `pgrep claude | wc -l`
 
-If count > 5: ⚠️ stale processes can cache old env state — newly-set `ANTHROPIC_API_KEY` or `GEMINI_API_KEY` won't be picked up by an already-running shell.
+Informational only — report the count, never a ⚠️ on count alone. Several `claude` processes are normal: the desktop app, parallel sessions and subagents each run one.
 
-Suggested fix:
-- Windows: `Get-Process claude | Stop-Process -Force`
-- macOS/Linux: `pkill claude`
+Act only when the user reports that a newly-set `ANTHROPIC_API_KEY` or `GEMINI_API_KEY` is not picked up. An already-running process keeps the environment it started with: suggest closing and reopening that one session or terminal. Never suggest stopping all `claude` processes — that also ends the current session and any parallel ones.
 
 ### 2. Auth paths configured (informational)
 
@@ -36,7 +34,7 @@ Suggested fix:
 
 If **both** are true: ⚠️ both auth paths are configured. Claude Code's precedence is well-defined and this is the documented setup for users on Claude Max who also want raw API access for tools like graphify — not a fault by itself.
 
-If the user has reported 401s from graphify in this state, the most likely root cause is stale process state holding old env values — covered by check 1. Do not recommend `/logout` without an actual 401 report; signing the user out of the IDE will frustrate someone whose loop is otherwise working.
+If the user has reported 401s from graphify in this state, the most likely root cause is a long-running process holding old env values — see check 1. Do not recommend `/logout` without an actual 401 report; signing the user out of the IDE will frustrate someone whose loop is otherwise working.
 
 ### 3. graphifyy install integrity
 
@@ -128,7 +126,7 @@ End with a single suggested next-step in priority order:
 
 1. ❌ findings first (broken state) — pick the highest-impact one
 2. ⚠️ findings next (working but degraded)
-3. Stale processes / spook files last (hygiene)
+3. Spook files last (hygiene)
 
 Example:
 

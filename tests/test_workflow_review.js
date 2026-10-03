@@ -30,8 +30,8 @@ for (const forbidden of ['agent(', 'parallel(', 'pipeline(', 'log(', 'phase(', '
   assert(!codeOnly.includes(forbidden), `PURE block must not use Workflow global: ${forbidden}`)
 }
 
-const { dedupeFindings, tallySeverity, verifyVerdict, collectFailedShards, buildSummary } = new Function(
-  block + '\nreturn { dedupeFindings, tallySeverity, verifyVerdict, collectFailedShards, buildSummary }'
+const { dedupeFindings, tallySeverity, verifyVerdict, collectFailedShards, buildSummary, gitDiffCmd } = new Function(
+  block + '\nreturn { dedupeFindings, tallySeverity, verifyVerdict, collectFailedShards, buildSummary, gitDiffCmd }'
 )()
 
 let passed = 0
@@ -178,6 +178,34 @@ check('summary carries path, counts and strategy', () => {
 check('summary warns about unreviewed shards', () => {
   const s = buildSummary('r.md', { blocker: 0, concern: 0, nit: 0 }, 'matrix', 8, 2)
   assert(s.includes('  - WARNING: 2 shard(s) unreviewed\nOpen the file'))
+})
+
+console.log('\ngitDiffCmd:')
+
+check('no range, no scope -> git diff HEAD', () => {
+  assert.strictEqual(gitDiffCmd('', null, null), 'git diff HEAD')
+})
+
+check('range + --name-only -> flag before range', () => {
+  assert.strictEqual(gitDiffCmd('--name-only', 'HEAD~1..HEAD', null), 'git diff --name-only HEAD~1..HEAD')
+})
+
+check('scopeFiles -> root-anchored, single-quoted pathspec after --', () => {
+  assert.strictEqual(
+    gitDiffCmd('--numstat', 'HEAD~1..HEAD', ['a.js', 'b/c.md']),
+    "git diff --numstat HEAD~1..HEAD -- ':(top)a.js' ':(top)b/c.md'"
+  )
+})
+
+check('pathspec survives spaces, $ and quotes', () => {
+  assert.strictEqual(
+    gitDiffCmd('', null, ["my dir/$x `y`.md", "it's.js"]),
+    "git diff HEAD -- ':(top)my dir/$x `y`.md' ':(top)it'\\''s.js'"
+  )
+})
+
+check('empty scopeFiles array -> no pathspec', () => {
+  assert.strictEqual(gitDiffCmd('', null, []), 'git diff HEAD')
 })
 
 console.log(`\nAll ${passed} tests passed.`)

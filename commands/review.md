@@ -14,6 +14,7 @@ Use the `karpathy-reviewer` subagent to review changes in the current repository
 4. Wait for the subagent to write its review file under `reviews/`.
 5. Display only the short summary the subagent printed inline.
 6. Do NOT auto-fix anything based on findings. The user decides whether to address them.
+7. If fixes for the findings land in the same commit as the review file, update that review's front-matter `status:`, add a short resolution note to its body, and update its `reviews/_index.md` line before committing. Otherwise the resolution lives only in the commit message, which nothing reads back. The review then stays falsely open (see "Closing the loop" in `/review-review`).
 
 ## Notes
 

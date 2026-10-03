@@ -86,7 +86,7 @@ cd your-project
 /review-review
 
 # When something feels off — silent failures, missing keys,
-# broken hooks, stale process state — read-only health check:
+# broken hooks, spook files — read-only health check:
 /diagnose-loop
 
 # Promote durable findings into anti-patterns:

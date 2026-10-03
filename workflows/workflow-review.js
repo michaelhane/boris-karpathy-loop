@@ -60,9 +60,11 @@ const SKEPTICS_FULL = 3
 const SKEPTICS_REDUCED = 1
 const LOW_BUDGET_TOKENS = 80000
 
-const diffCmd = range ? `git diff ${range}` : 'git diff HEAD'
-const numstatCmd = range ? `git diff --numstat ${range}` : 'git diff --numstat HEAD'
-const nameOnlyCmd = range ? `git diff --name-only ${range}` : 'git diff --name-only HEAD'
+// gitDiffCmd is a hoisted function declaration inside the PURE block below, so it is
+// callable here. It adds the scopeFiles pathspec so every reader sees only scoped files.
+const diffCmd = gitDiffCmd('', range, scopeFiles)
+const numstatCmd = gitDiffCmd('--numstat', range, scopeFiles)
+const nameOnlyCmd = gitDiffCmd('--name-only', range, scopeFiles)
 
 const PRINCIPLE_NAMES = {
   1: "Don't assume - surface what was glossed over",
@@ -136,6 +138,14 @@ const SYNTH_SCHEMA = {
 // slices the source between the PURE-BEGIN / PURE-END fences and evals it, so it can
 // unit-test this logic without launching the panel. Keep the fence markers exact and
 // keep everything between them free of agent()/parallel()/log()/args/budget.
+function gitDiffCmd(flag, range, scopeFiles) {
+  const base = `git diff${flag ? ` ${flag}` : ''} ${range || 'HEAD'}`
+  if (!Array.isArray(scopeFiles) || scopeFiles.length === 0) return base
+  // :(top) anchors each path at the repo root whatever the agent's cwd; single quotes
+  // stop the shell expanding $, backticks or spaces (a ' is closed, escaped, reopened).
+  const quote = (p) => `':(top)${p.replace(/'/g, `'\\''`)}'`
+  return `${base} -- ${scopeFiles.map(quote).join(' ')}`
+}
 function dedupeFindings(findings) {
   const seen = new Set()
   const out = []

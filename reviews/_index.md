@@ -14,3 +14,4 @@
 - 2026-08-28 `hello-wrap-session-skills-audit` — 1 blocker, 4 concerns, 3 nits — **open** (evidence-audit van de twee lokale ~/.claude-skills; file-level pass geblokkeerd tot ze geversioneerd zijn — blocker + 5-staps fix-plan incl. kickoff in de review) ([link](./2026-08-28-hello-wrap-session-skills-audit.md))
 - 2026-10-02 `v0.4.3-prompt-audit-fixes` — 0 blockers, 2 concerns, 3 nits — **closed 2026-10-02** (concerns fixed in c9cd250; verified by dogfood run wf_65dbd1ec-cbf) ([link](./2026-10-02-v0.4.3-prompt-audit-fixes.md))
 - 2026-10-02 `v0.4.3-prompt-audit-panel` — 0 blockers, 1 concern, 1 nit — **closed 2026-10-02** (false-open in the fixes review reconciled) ([link](./2026-10-02-v0.4.3-prompt-audit-panel.md))
+- 2026-10-03 `v0.4.4-prompt-audit-release-2` — 0 blockers, 2 concerns, 3 nits — **closed 2026-10-03** (both concerns fixed in the same commit) ([link](./2026-10-03-v0.4.4-prompt-audit-release-2.md))

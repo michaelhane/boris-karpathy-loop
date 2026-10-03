@@ -76,6 +76,7 @@ Look for:
 - Tests that don't exercise the actual change
 - Success criteria stated only in prose
 - Manual verification steps that aren't documented
+- Human-facing text written into a record or UI (a warning, an instruction, a "see X" / "check in /triage" pointer): the pointer is a testable claim. Trace the interface it points to and check the text is shown there
 
 ## Output format
 
