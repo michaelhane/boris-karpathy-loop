@@ -9,7 +9,9 @@
       "mcp__visualize__read_me",
       "mcp__visualize__show_widget",
       "mcp__Claude_Browser__read_console_messages",
-      "mcp__Claude_Browser__read_network_requests"
+      "mcp__Claude_Browser__read_network_requests",
+      "Bash(node tests/test_workflow_review.js)",
+      "Bash(vale *)"
     ]
   },
   "hooks": {
