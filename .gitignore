@@ -12,6 +12,9 @@ node_modules/
 *.log
 .DS_Store
 
+# Secrets: a local .env (API keys) must never be committed
+.env
+
 # Editor
 .vscode/
 .idea/
