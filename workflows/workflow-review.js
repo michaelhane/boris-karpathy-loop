@@ -60,6 +60,13 @@ const SKEPTICS_FULL = 3
 const SKEPTICS_REDUCED = 1
 const LOW_BUDGET_TOKENS = 80000
 
+// ---- shard cap ----
+// One reviewer (plus up to 3 skeptics per finding) runs per shard, so shard count is the
+// main token multiplier. The planner prompt asks for <= MAX_SHARDS, but a prompt is a
+// request, not a bound: clampShards() enforces it in code and records any overshoot in
+// caps_applied, which the artifact's review_method line carries.
+const MAX_SHARDS = 8
+
 // gitDiffCmd is a hoisted function declaration inside the PURE block below, so it is
 // callable here. It adds the scopeFiles pathspec so every reader sees only scoped files.
 const diffCmd = gitDiffCmd('', range, scopeFiles)
@@ -191,6 +198,21 @@ function verifyVerdict(votes, skeptics) {
   return { survived, unverified: false, refutes, returned: returned.length, errored, label }
 }
 
+// Hard-cap a planner result at `max` shards. Returns { shards, caps_applied } without
+// mutating `plan`: the planner's own caps_applied entries are kept, and when shards are
+// dropped one more entry says so (the dropped shards' lenses are NOT reviewed). Keep the
+// note free of double quotes: caps_applied is joined into a quoted YAML string.
+function clampShards(plan, max) {
+  const shards = plan.shards || []
+  const caps = plan.caps_applied || []
+  if (shards.length <= max) return { shards, caps_applied: caps }
+  const dropped = shards.length - max
+  return {
+    shards: shards.slice(0, max),
+    caps_applied: [...caps, `shard cap ${max} applied in code: planner returned ${shards.length}, last ${dropped} dropped and unreviewed`],
+  }
+}
+
 // Shards that never produced a real review: explicit { failed:true } markers AND null
 // entries (a pipeline stage that threw is dropped to null). Returns human-readable labels.
 function collectFailedShards(reviewed) {
@@ -215,7 +237,7 @@ Open the file for full details.`
 
 // ---- Phase 1: Plan ----
 phase('Plan')
-const plan = await agent(
+const planned = await agent(
   `You are the PLANNER for a multi-agent code-review panel. Do NOT review the code yourself.
 Run \`${diffCmd}\` and \`${numstatCmd}\` to see the change under review.
 ${scopeFiles ? `Scope is limited to these files: ${scopeFiles.join(', ')}.` : ''}
@@ -226,15 +248,18 @@ Choose a shard strategy:
 - "by-file": many files, each moderate. One shard per file; each reviews that file against all 4 principles.
 - "matrix": large AND risky. Heavy principle 3 (preserve-what-works, must inspect every deletion) sharded per file; light principles 1,2,4 one shard each over the whole diff.
 
-Cap total shards at 8. If by-file/matrix would exceed 8, group files into <=8 buckets and record that in caps_applied.
+Cap total shards at ${MAX_SHARDS}. If by-file/matrix would exceed ${MAX_SHARDS}, group files into <=${MAX_SHARDS} buckets and record that in caps_applied.
 For each shard return: principles (array of integers 1..4), files (array of repo-root paths, or ["*"] for the whole diff), and a one-line why.`,
   { phase: 'Plan', schema: PLAN_SCHEMA, ...TUNING.plan }
 )
 
-if (!plan || !plan.shards || !plan.shards.length) {
+if (!planned || !planned.shards || !planned.shards.length) {
   log('Planner produced no shards - aborting without writing a review.')
   return { error: 'no-plan', summary: 'workflow-review: planner produced no shards; nothing was reviewed.' }
 }
+// Everything below reads the clamped plan, so the log line, the review_method string
+// and the summary all show the real shard count and any cap that was applied.
+const plan = { ...planned, ...clampShards(planned, MAX_SHARDS) }
 log(`Strategy: ${plan.strategy} - ${plan.shards.length} shards${plan.caps_applied && plan.caps_applied.length ? ' - caps: ' + plan.caps_applied.join('; ') : ''}`)
 
 // ---- Phase 2 (Review) + Phase 3 (Verify), pipelined per shard ----

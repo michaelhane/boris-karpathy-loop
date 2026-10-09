@@ -30,8 +30,8 @@ for (const forbidden of ['agent(', 'parallel(', 'pipeline(', 'log(', 'phase(', '
   assert(!codeOnly.includes(forbidden), `PURE block must not use Workflow global: ${forbidden}`)
 }
 
-const { dedupeFindings, tallySeverity, verifyVerdict, collectFailedShards, buildSummary, gitDiffCmd } = new Function(
-  block + '\nreturn { dedupeFindings, tallySeverity, verifyVerdict, collectFailedShards, buildSummary, gitDiffCmd }'
+const { dedupeFindings, tallySeverity, verifyVerdict, collectFailedShards, buildSummary, gitDiffCmd, clampShards } = new Function(
+  block + '\nreturn { dedupeFindings, tallySeverity, verifyVerdict, collectFailedShards, buildSummary, gitDiffCmd, clampShards }'
 )()
 
 let passed = 0
@@ -206,6 +206,53 @@ check('pathspec survives spaces, $ and quotes', () => {
 
 check('empty scopeFiles array -> no pathspec', () => {
   assert.strictEqual(gitDiffCmd('', null, []), 'git diff HEAD')
+})
+
+console.log('\nclampShards:')
+
+const shardList = (n) => Array.from({ length: n }, (_v, i) => ({ principles: [1], files: [`f${i + 1}.js`], why: `w${i + 1}` }))
+
+check('12 shards -> 8 kept (first 8), caps_applied names the overshoot', () => {
+  const out = clampShards({ strategy: 'by-file', shards: shardList(12) }, 8)
+  assert.strictEqual(out.shards.length, 8)
+  assert.deepStrictEqual(out.shards.map((s) => s.files[0]), ['f1.js', 'f2.js', 'f3.js', 'f4.js', 'f5.js', 'f6.js', 'f7.js', 'f8.js'])
+  assert.strictEqual(out.caps_applied.length, 1)
+  assert(/12/.test(out.caps_applied[0]) && /8/.test(out.caps_applied[0]), 'cap note must carry the planner count and the limit')
+  // caps_applied lands inside a double-quoted YAML string in the artifact front-matter.
+  assert(!out.caps_applied[0].includes('"'), 'cap note must not contain a double quote')
+})
+
+check('12 shards + planner caps -> planner caps kept, code cap appended', () => {
+  const out = clampShards({ shards: shardList(12), caps_applied: ['grouped files'] }, 8)
+  assert.strictEqual(out.shards.length, 8)
+  assert.strictEqual(out.caps_applied.length, 2)
+  assert.strictEqual(out.caps_applied[0], 'grouped files')
+})
+
+check('exactly 8 shards -> untouched, no cap note', () => {
+  const out = clampShards({ shards: shardList(8), caps_applied: ['grouped files'] }, 8)
+  assert.strictEqual(out.shards.length, 8)
+  assert.deepStrictEqual(out.caps_applied, ['grouped files'])
+})
+
+check('4 shards, no planner caps -> untouched, empty caps_applied', () => {
+  const out = clampShards({ shards: shardList(4) }, 8)
+  assert.strictEqual(out.shards.length, 4)
+  assert.deepStrictEqual(out.caps_applied, [])
+})
+
+check('clampShards does not mutate the planner result', () => {
+  const plan = { shards: shardList(12), caps_applied: ['x'] }
+  clampShards(plan, 8)
+  assert.strictEqual(plan.shards.length, 12)
+  assert.deepStrictEqual(plan.caps_applied, ['x'])
+})
+
+check('WIRING: the limit is 8 and the plan passes through clampShards', () => {
+  assert(/const MAX_SHARDS = 8\b/.test(src), 'MAX_SHARDS must be the single named limit, set to 8')
+  const outsidePure = src.slice(0, b) + src.slice(e)
+  assert(/clampShards\(\s*planned\s*,\s*MAX_SHARDS\s*\)/.test(outsidePure), 'plan must be clamped with MAX_SHARDS before use')
+  assert(outsidePure.includes('${MAX_SHARDS}'), 'planner prompt must take the limit from MAX_SHARDS, not a second literal')
 })
 
 console.log(`\nAll ${passed} tests passed.`)
